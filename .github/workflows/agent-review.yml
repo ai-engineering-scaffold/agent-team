@@ -34,6 +34,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: https://github.com/ai-engineering-scaffold/agent-team.git
           plugins: scaffold-org@ai-engineering-scaffold
+          # The reviewer has no secrets and only read-only gh commands, and its review is public anyway,
+          # so showing its transcript costs nothing and makes a failed review diagnosable.
+          show_full_output: true
           prompt: |
             REPO: ${{ github.repository }}
             PR: #${{ github.event.pull_request.number }}
@@ -42,6 +45,7 @@ jobs:
             Post its review as one comment with `gh pr comment ${{ github.event.pull_request.number }} --body-file`,
             ending with a line that reads exactly "Verdict: PASS" or "Verdict: CHANGES_REQUESTED".
             Then write the verdict word alone (PASS or CHANGES_REQUESTED) to the file .agent-review/verdict.
+            If the subagent is not available, say so plainly and stop without writing a verdict.
           claude_args: |
             --max-turns 40
             --allowedTools "Agent,Read,Grep,Glob,Write(.agent-review/**),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
