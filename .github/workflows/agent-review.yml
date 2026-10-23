@@ -46,13 +46,16 @@ jobs:
 
             Use the scaffold-org:code-reviewer subagent to review this pull request.
             Run it in the foreground (run_in_background: false) and wait for its result before doing anything else.
-            Post its review as one comment with `gh pr comment ${{ github.event.pull_request.number }} --body-file`,
-            ending with a line that reads exactly "Verdict: PASS" or "Verdict: CHANGES_REQUESTED".
-            Then write the verdict word alone (PASS or CHANGES_REQUESTED) to the file .agent-review/verdict.
+            Then, using only these steps:
+            1. With the Write tool, save its review to .agent-review/review.md, ending with a line that reads
+               exactly "Verdict: PASS" or "Verdict: CHANGES_REQUESTED".
+            2. Run `gh pr comment ${{ github.event.pull_request.number }} --body-file .agent-review/review.md` as one
+               command on its own, with no pipes, redirects or chained commands.
+            3. With the Write tool, write the verdict word alone (PASS or CHANGES_REQUESTED) to .agent-review/verdict.
             If the subagent is not available, say so plainly and stop without writing a verdict.
           claude_args: |
             --max-turns 40
-            --allowedTools "Agent,Read,Grep,Glob,Write(.agent-review/**),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+            --allowedTools "Agent,Read,Grep,Glob,Edit(.agent-review/**),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
       - name: Enforce the verdict
         run: |
           verdict="$(tr -d '[:space:]' < .agent-review/verdict 2>/dev/null || true)"
