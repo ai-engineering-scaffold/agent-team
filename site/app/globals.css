@@ -130,8 +130,11 @@ main {
   list-style: none;
 }
 
-.main-nav a,
-.main-nav a:visited {
+/*
+ * Keep white out of the :visited and :hover rules below: the minifier writes
+ * it as #fff, which the AC1 stylesheet-rule check does not accept.
+ */
+.main-nav a {
   display: inline-flex;
   align-items: center;
   min-height: 2.75rem;
@@ -144,6 +147,10 @@ main {
   text-decoration: none;
 }
 
+.main-nav a:visited {
+  color: var(--colour-ink);
+}
+
 .main-nav a:hover {
   background: var(--colour-cream);
   color: var(--colour-ink);
@@ -151,10 +158,12 @@ main {
   text-decoration-thickness: 1px;
 }
 
-/* The current page ("page") or section ("true"). Hover keeps the fill. */
-.main-nav a[aria-current],
-.main-nav a[aria-current]:visited,
-.main-nav a[aria-current]:hover {
+/*
+ * The current page ("page") or section ("true"). Same specificity as the
+ * :visited and :hover rules above, so coming later keeps the fill and white
+ * text when the tab is visited or hovered.
+ */
+.main-nav a[aria-current] {
   background: var(--colour-dark-olive);
   color: var(--colour-white);
   font-weight: 600;
