@@ -114,17 +114,73 @@ describe("fetching the ledger before the build", () => {
     expect(await readFile(path.join(siteDir, ".ledger", "ledger", "2026", "10", "1-1-build.json"), "utf8")).toBe(RECORD);
   });
 
-  it("does nothing when LEDGER_SKIP_FETCH=1", async () => {
+  it("copies the e2e fixture instead of downloading when LEDGER_SKIP_FETCH=1, and says so", async () => {
     const siteDir = await tempDir();
+    const fixture = path.join(siteDir, "e2e", "fixtures", "ledger", "ledger", "2026", "10");
+    await mkdir(fixture, { recursive: true });
+    await writeFile(path.join(fixture, "1-1-build.json"), RECORD);
+    // A stale ledger from an earlier build must not survive alongside the fixture.
+    await mkdir(path.join(siteDir, ".ledger", "ledger", "2025"), { recursive: true });
+    await writeFile(path.join(siteDir, ".ledger", "ledger", "2025", "old.json"), RECORD);
+
     let called = false;
     const fetchImpl: typeof fetch = async () => {
       called = true;
       return new Response(null, { status: 500 });
     };
-    await expect(fetchLedger({ siteDir, env: { LEDGER_SKIP_FETCH: "1" }, fetchImpl, log: quiet })).resolves.toBe(
-      "skipped",
-    );
+    const logs: string[] = [];
+    await expect(
+      fetchLedger({ siteDir, env: { LEDGER_SKIP_FETCH: "1" }, fetchImpl, log: (m) => logs.push(m) }),
+    ).resolves.toBe("fixture");
     expect(called).toBe(false);
+    expect(logs).toEqual(["LEDGER_SKIP_FETCH=1, so the e2e fixture ledger was copied"]);
+    expect(await readdir(path.join(siteDir, ".ledger", "ledger"))).toEqual(["2026"]);
+    expect(await readFile(path.join(siteDir, ".ledger", "ledger", "2026", "10", "1-1-build.json"), "utf8")).toBe(RECORD);
+  });
+
+  it("copies the committed e2e fixture by default", async () => {
+    const siteDir = await tempDir();
+    const fixtureDir = path.join(__dirname, "..", "..", "e2e", "fixtures", "ledger", "ledger");
+    await expect(fetchLedger({ siteDir, fixtureDir, env: { LEDGER_SKIP_FETCH: "1" }, log: quiet })).resolves.toBe(
+      "fixture",
+    );
+    expect(await readdir(path.join(siteDir, ".ledger", "ledger", "2026"))).toEqual(["08", "09", "10"]);
+  });
+
+  it("never uses the fixture on Vercel: VERCEL=1 with LEDGER_SKIP_FETCH=1 leaves no ledger", async () => {
+    const siteDir = await tempDir();
+    const fixture = path.join(siteDir, "e2e", "fixtures", "ledger", "ledger", "2026", "10");
+    await mkdir(fixture, { recursive: true });
+    await writeFile(path.join(fixture, "1-1-build.json"), RECORD);
+    await mkdir(path.join(siteDir, ".ledger", "ledger"), { recursive: true });
+
+    let called = false;
+    const fetchImpl: typeof fetch = async () => {
+      called = true;
+      return new Response(null, { status: 500 });
+    };
+    await expect(
+      fetchLedger({ siteDir, env: { LEDGER_SKIP_FETCH: "1", VERCEL: "1" }, fetchImpl, log: quiet }),
+    ).resolves.toBe("skipped");
+    expect(called).toBe(false);
+    expect(await exists(path.join(siteDir, ".ledger"))).toBe(false);
+  });
+
+  it("leaves no ledger when the fixture is missing or holds a symlink", async () => {
+    const missing = await tempDir();
+    await expect(fetchLedger({ siteDir: missing, env: { LEDGER_SKIP_FETCH: "1" }, log: quiet })).resolves.toBe(
+      "failed",
+    );
+    expect(await exists(path.join(missing, ".ledger"))).toBe(false);
+
+    const linked = await tempDir();
+    const fixture = path.join(linked, "e2e", "fixtures", "ledger", "ledger");
+    await mkdir(fixture, { recursive: true });
+    await symlink("/etc", path.join(fixture, "escape"));
+    await expect(fetchLedger({ siteDir: linked, env: { LEDGER_SKIP_FETCH: "1" }, log: quiet })).resolves.toBe(
+      "failed",
+    );
+    expect(await exists(path.join(linked, ".ledger"))).toBe(false);
   });
 
   it("leaves no ledger when the branch does not exist yet", async () => {

@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-15T13:00:00Z",
+  "workflow": "build",
+  "spec": "002",
+  "issue": 20,
+  "pr": 22,
+  "cost_usd": 7.35,
+  "turns": 70,
+  "duration_s": 2100,
+  "outcome": "success"
+}
