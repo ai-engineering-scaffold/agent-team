@@ -21,7 +21,7 @@ Every agent job gets a small `record` job after it. The record job builds one JS
 - The branch is an orphan branch with one file per run: `ledger/YYYY/MM/<run_id>-<attempt>-<job>.json`. Separate files mean concurrent runs never edit the same file, so a rejected push is fixed by `git pull --rebase` and one retry (up to three tries).
 - The `main` ruleset targets only the default branch, so no ruleset exception is needed. The record job pushes with the workflow's `GITHUB_TOKEN` (`contents: write`). That push starts no workflow, which is what we want.
 - A push to `metrics` is never a merge to `main`, so it doesn't start `agent-pipeline`.
-- Readers: workflows run `git fetch --depth=1 origin metrics` and read the files from `FETCH_HEAD`. The site build downloads `https://codeload.github.com/<repo>/tar.gz/refs/heads/metrics` (public, no token) into `site/.ledger/` in a `prebuild` script. If the download fails, the build continues with an empty ledger and logs a warning, so a GitHub outage never breaks a deploy.
+- Readers: workflows run `git fetch --depth=1 origin metrics` and read the files from `FETCH_HEAD`. The site build downloads `https://codeload.github.com/<repo>/tar.gz/refs/heads/metrics` (public, no token) into `site/.ledger/` in a `prebuild` script. If the download fails, the build continues and logs a warning, so a GitHub outage never breaks a deploy. The loader then returns `available: false`, distinct from an empty ledger, so the metrics page can say the data is unavailable instead of showing $0. `site/.ledger/` is added to `.gitignore`.
 
 ## 2. Recording runs that time out or are cancelled (AC2)
 
@@ -34,12 +34,14 @@ record:
 ```
 
 - **The agent job** adds a final `if: always()` step that reads the action's `execution_file` and writes `cost_usd`, `turns` and `subtype` as job outputs. These are three numbers or words, never the transcript. If the job is cancelled before that step, the outputs are empty, and the record has `null` cost and turns.
-- **The record job** reads `needs.agent.result` and the agent job's start and end times from the Jobs API, then maps them to `outcome`:
-  - `success`: the job succeeded.
+- **The record job** reads `subtype`, `needs.agent.result`, and the agent job's and agent step's start and end times from the Jobs API, then maps them to `outcome`. The outcome comes from the agent step first, because a job can fail after a successful agent step: `agent-review` exits 1 on every CHANGES_REQUESTED verdict, and `agent-build` can fail in its "Mark the issue blocked" step.
+  - `success`: `subtype` is `success`, whatever the job's result.
   - `max_turns`: `subtype` is `error_max_turns`.
-  - `timeout`: the job failed or was cancelled, and its elapsed time is within 60 seconds of its `timeout-minutes`.
-  - `cancelled`: the job was cancelled otherwise, for example by `cancel-in-progress` on a new push.
-  - `error`: anything else.
+  - Only when `subtype` is empty does the job's result decide:
+    - `timeout`: the job failed or was cancelled, and its elapsed time is within 60 seconds of its `timeout-minutes`. The workflow passes that value to the record job as an env value set next to the job (20 for plan and review, 60 for build and fix), never hard-coded in the script.
+    - `cancelled`: the job was cancelled otherwise, for example by `cancel-in-progress` on a new push.
+    - `error`: anything else, including any other non-empty `subtype`.
+- **Field sources (AC1).** `date` is the run's start time (`run_started_at`). `duration_s` is the agent step's own start to end, or to when the job stopped if the step never finished; it is never the job's duration.
 - A run is recorded only if the agent step started; the record job checks that the step has a start time. That matches the spec's "a run that fails before the agent step starts is not recorded".
 
 ## 3. How workflows call the TypeScript
@@ -50,7 +52,7 @@ record:
 | B. `tsx` | Yes (dev) | Most forgiving, but a new dependency for three scripts. |
 | C. `tsc` build step | None | An extra compile step in each workflow and output to keep out of the repo. |
 
-**Choice: A.** Node 22.18 and later strip types without a flag, and the workflows already pin Node 22. The engineer sets `allowImportingTsExtensions` in `site/tsconfig.json` so Next.js, Vitest and Node all accept the `.ts` imports. If that clashes with the Next.js build, B is the fallback, named in the PR as a new dependency.
+**Choice: A.** Node 22.18 and later strip types without a flag. Not every job pins Node today (`agent-review.yml` and the plan job have no `setup-node`), so every job that runs these scripts, including each new record job, adds `actions/setup-node` with `node-version: 22`. The engineer sets `allowImportingTsExtensions` in `site/tsconfig.json` so Next.js, Vitest and Node all accept the `.ts` imports. If that clashes with the Next.js build, B is the fallback, named in the PR as a new dependency.
 
 Files:
 
@@ -70,14 +72,31 @@ Agents may not edit `.github/workflows/`, so the last issue (#23) writes the scr
 
 - an `if: always()` output step and a `record` job in `agent-build.yml`, `agent-fix.yml`, `agent-review.yml` and the plan job in `agent-pipeline.yml`;
 - the spend line added to the review prompt, read from a file the review job writes before Claude runs;
-- `contents: write` on the record jobs only.
+- the permissions below, on the record jobs only.
+
+Record job permissions, listed in full so the diff doesn't hit a 403 that AC6's "labelling can't fail the job" would hide:
+
+| Permission | Why |
+| --- | --- |
+| `contents: write` | Push the record to `metrics` |
+| `actions: read` | Job and step timings from the Jobs API |
+| `pull-requests: read` | List open PRs for AC6 |
+| `issues: write` | Create and add the `over-budget` label (AC6) |
+
+**Scripts run from `main`, never from the PR.** On `pull_request`, `actions/checkout` defaults to the PR's merge commit, so a PR could otherwise change the scripts that record it, rewrite the ledger with the record job's write token, or fake its own spend line. That would break the rule in `agent-review.yml` and `merge-gate.yml` that a PR never changes what reviews it. So:
+
+- every record job and the spend-line step check out `ref: main` and run the scripts from there;
+- the build, fix and plan record jobs also check out `main` explicitly;
+- the record job in `agent-review.yml` repeats the agent job's same-repo guard, because `if: always()` would otherwise run it on fork PRs.
+
+**The spend line is numbers only.** Anyone with write access can edit a record on `metrics` (ADR 0010), and the line goes into the review prompt. The formatter reads only records that pass schema validation and emits only numbers and the spec number, so a hand-edited record can't inject text into the prompt.
 
 Untrusted values (branch names, labels, PR titles) reach scripts only through `env:`, never through `${{ }}` inside `run:`, and `spec` is matched against `^[0-9]{3}$` before use.
 
 ## 6. Testing
 
-Per [ADR 0011](../../decisions/0011-unit-tests-for-criteria-without-a-page.md), AC1–AC6 are checked by Vitest tests in `site/tests/ledger/`, named after each criterion, with fixtures in `site/tests/fixtures/ledger/`: one execution result per outcome, a small ledger folder and PR and issue lists for the label target.
+Per [ADR 0011](../../decisions/0011-unit-tests-for-criteria-without-a-page.md), AC1–AC6 are checked by Vitest tests in `site/tests/ledger/`, named after each criterion, with fixtures in `site/tests/fixtures/ledger/`: one execution result per outcome (including an agent step that succeeded in a job that failed afterwards), a small ledger folder and PR and issue lists for the label target.
 
 ## Build order
 
-The issues stay as sliced: #19 schema and builder, #20 loader, #21 spend line, #22 label target, #23 scripts and the proposed workflow diff. When Graham merges this design, he removes `design-needed` from #19–#23 and closes #18, and the pipeline builds #19 next.
+The issues stay as sliced: #19 schema and builder, #20 loader, #21 spend line, #22 label target, #23 scripts and the proposed workflow diff. Once this design merges, `design-needed` comes off #19–#23 and #18 closes, and the pipeline builds #19 next.
