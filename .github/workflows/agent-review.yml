@@ -15,9 +15,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  agent-review:
-    # Fork PRs get no secrets, and must never run an agent with write access.
+  # ADR 0016: Graham reviews PRs that change workflows himself. claude-code-action won't run when a workflow
+  # differs from main's copy anyway, so the agent review would only fail on them. A skipped job counts as
+  # passed for the required agent-review check, and merge-gate still needs Graham on these PRs.
+  scope:
     if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      review: ${{ steps.files.outputs.review }}
+    steps:
+      - id: files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # A skipped review passes the check, so if the file list can't be read, review the PR.
+          files="$(gh pr diff "$PR" --repo "$REPO" --name-only)" || files=""
+          if grep -q '^\.github/workflows/' <<<"$files"; then
+            echo "This PR changes .github/workflows/, so Graham reviews it and the agent review is skipped."
+            echo "review=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "review=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  agent-review:
+    needs: scope
+    # Fork PRs get no secrets, and must never run an agent with write access.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft &&
+      needs.scope.outputs.review == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -120,7 +149,8 @@ jobs:
           verdict="$(tr -d '[:space:]' < .agent-review/verdict 2>/dev/null || true)"
           # Only agent-built PRs are fixed automatically; agent-fix checks this again and caps the rounds.
           if [ "$verdict" = "CHANGES_REQUESTED" ] && [[ "$REF" =~ ^spec-[0-9]{3}/issue-[0-9]+- ]]; then
-            gh workflow run agent-fix.yml --repo "${{ github.repository }}" --ref main -f pr=${{ github.event.pull_request.number }}
+            gh workflow run agent-fix.yml --repo "${{ github.repository }}" --ref main -f pr=${{ github.event.pull_request.number }} \
+              -f reason=review -f sha=${{ github.event.pull_request.head.sha }}
             echo "Started agent-fix for this PR."
           fi
       - name: Enforce the verdict

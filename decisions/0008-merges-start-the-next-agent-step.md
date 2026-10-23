@@ -28,4 +28,5 @@ Build branches are named `spec-NNN/issue-N-short-name`, so the pipeline can tell
 
 - Graham's work becomes reviewing and merging. Nothing else needs a click.
 - An open build PR holds up the next build, including builds for other specs. If that becomes a bottleneck, revisit with one build per spec.
+- Revisited in ADR 0016: each spec now builds alongside the others, one build per spec at a time.
 - The `agent:build` label is retired. Graham can still start one issue by hand with the `agent-build` workflow's Run button.

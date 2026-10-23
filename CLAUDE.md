@@ -6,11 +6,13 @@ This is the home repo of an AI-native engineering org that runs in public. Agent
 
 1. **Spec** (`spec-writer`): a brief becomes `specs/NNN-name.md`. Graham approves it (the spec gate).
    Graham gives any design input in the spec's "Design input" section.
-2. **Plan** (`tech-lead`): makes any real technical choice and writes it into the first issue. Work is sliced into one-PR issues. There is no design gate (ADR 0012).
+2. **Plan** (`tech-lead`): makes any real technical choice and writes it into the first issue. A spec is usually one issue (ADR 0016). There is no design gate (ADR 0012).
 3. **Build** (`engineer`, then `qa-automation`): code, unit tests, Playwright tests from the spec's criteria, one PR per issue. The first PR adds the design doc and proposed ADR when the issue has a design.
 4. **CI** gate: `site` and `e2e` checks must pass.
-5. **Review** gate (`code-reviewer`): a fresh-context review that must return PASS.
-6. **Merge** gate: Graham merges, except low-risk PRs that only touch paths in `.github/low-risk-paths.txt`, which auto-merge.
+5. **Review** gate (`code-reviewer`): a fresh-context review that must return PASS. PRs that change `.github/workflows/` skip it and Graham reviews them.
+6. **Merge** gate: Graham approves and the PR auto-merges, except low-risk PRs that only touch paths in `.github/low-risk-paths.txt`, which auto-merge without him.
+
+Several specs build at once, one build per spec (ADR 0016). The fix agent handles review changes, failed checks and conflicts with main, two rounds each, before a PR waits for Graham.
 
 The roles, skills and hooks live in `plugin/` (the `scaffold-org` plugin). Decisions behind all of this are in `decisions/`.
 

@@ -67,6 +67,12 @@ jobs:
             --jq "[.[] | select(.user.login == \"$MERGE_OWNER\" and .commit_id == \"$HEAD_SHA\" and (.state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\" or .state == \"DISMISSED\"))] | last | .state // \"\"")"
           if [ "$state" = "APPROVED" ]; then
             echo "$MERGE_OWNER approved the latest commit."
+            # ADR 0016: his approval is the merge decision, so the PR merges once the other checks pass.
+            # A later push dismisses the approval, and this gate then fails again until he re-approves.
+            if [ "$SAME_REPO" = "true" ]; then
+              gh pr merge "$PR" --repo "$REPO" --auto --squash \
+                || echo "::warning::Could not turn on auto-merge. Is 'Allow auto-merge' enabled in the repo settings?"
+            fi
             exit 0
           fi
           echo "::error::This PR needs $MERGE_OWNER's approval on its latest commit."
