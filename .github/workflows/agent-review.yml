@@ -1,0 +1,55 @@
+# Gate 4: the reviewer agent reviews every PR in a fresh context and must return PASS.
+# The plugin is installed from main, so a PR can never change the reviewer that reviews it.
+name: agent-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_call:
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+
+concurrency:
+  group: agent-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  agent-review:
+    # Fork PRs get no secrets, and must never run an agent with write access.
+    if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: https://github.com/ai-engineering-scaffold/agent-team.git
+          plugins: scaffold-org@ai-engineering-scaffold
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR: #${{ github.event.pull_request.number }}
+
+            Use the scaffold-org:code-reviewer subagent to review this pull request.
+            Post its review as one comment with `gh pr comment ${{ github.event.pull_request.number }} --body-file`,
+            ending with a line that reads exactly "Verdict: PASS" or "Verdict: CHANGES_REQUESTED".
+            Then write the verdict word alone (PASS or CHANGES_REQUESTED) to the file .agent-review/verdict.
+          claude_args: |
+            --max-turns 40
+            --allowedTools "Agent,Read,Grep,Glob,Write(.agent-review/**),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+      - name: Enforce the verdict
+        run: |
+          verdict="$(tr -d '[:space:]' < .agent-review/verdict 2>/dev/null || true)"
+          echo "Reviewer verdict: ${verdict:-none}"
+          if [ "$verdict" != "PASS" ]; then
+            echo "::error::The reviewer agent requested changes or gave no verdict. See its comment on the PR."
+            exit 1
+          fi

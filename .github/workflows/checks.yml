@@ -1,0 +1,67 @@
+# Gate 3: lint, types, unit tests, build and Playwright. Product repos call this with workflow_call.
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory that holds the app's package.json
+        type: string
+        default: site
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_DIR: ${{ inputs.working-directory || 'site' }}
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ env.APP_DIR }}
+      - name: Lint, typecheck, unit tests
+        run: npm run check
+        working-directory: ${{ env.APP_DIR }}
+      - name: Build
+        run: npm run build
+        working-directory: ${{ env.APP_DIR }}
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+      - run: npm ci
+        working-directory: ${{ env.APP_DIR }}
+      - run: npx playwright install --with-deps chromium
+        working-directory: ${{ env.APP_DIR }}
+      - run: npm run build
+        working-directory: ${{ env.APP_DIR }}
+      - name: Playwright
+        run: npm run test:e2e
+        working-directory: ${{ env.APP_DIR }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: ${{ env.APP_DIR }}/playwright-report
+          retention-days: 14

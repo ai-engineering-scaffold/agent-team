@@ -1,0 +1,6 @@
+# Paths an agent may merge without Graham once CI and the reviewer agent pass (decisions/0006).
+# A line ending in / covers everything under that folder; any other line is one exact file.
+# This file is protected: widening it takes Graham's approval and a new ADR.
+docs/
+metrics/
+site/content/

@@ -1,0 +1,20 @@
+name: Bug
+description: Something shipped that does not work as its spec says
+labels: [bug]
+body:
+  - type: input
+    id: spec
+    attributes:
+      label: Spec and criterion
+      placeholder: specs/001-decision-log.md, AC2
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what should have happened
+    validations:
+      required: true
+  - type: dropdown
+    id: found
+    attributes:
+      label: Found by
+      options: [Graham, reviewer agent, QA agent, CI, a visitor]

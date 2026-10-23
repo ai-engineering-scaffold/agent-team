@@ -1,0 +1,13 @@
+{
+  "name": "ai-engineering-scaffold",
+  "owner": {
+    "name": "AI Engineering Scaffold"
+  },
+  "plugins": [
+    {
+      "name": "scaffold-org",
+      "source": "./plugin",
+      "description": "The org's agent roles, skills and guardrail hooks"
+    }
+  ]
+}

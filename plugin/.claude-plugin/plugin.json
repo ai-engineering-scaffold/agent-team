@@ -1,0 +1,10 @@
+{
+  "name": "scaffold-org",
+  "displayName": "AI Engineering Scaffold org",
+  "version": "0.1.0",
+  "description": "Agent roles (spec writer, tech lead, engineer, code reviewer, QA automation, scribe), the skills behind each handoff, and guardrail hooks",
+  "author": {
+    "name": "AI Engineering Scaffold"
+  },
+  "repository": "https://github.com/ai-engineering-scaffold/agent-team"
+}

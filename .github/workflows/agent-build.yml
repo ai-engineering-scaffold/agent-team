@@ -1,0 +1,46 @@
+# Starts the engineer when Graham labels an issue agent:build. The engineer builds, QA adds
+# Playwright tests for the spec's criteria, and the result opens as a PR that goes through every gate.
+name: agent-build
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  build:
+    # Only Graham can start a build; anyone can open an issue on a public repo.
+    if: github.event.label.name == 'agent:build' && github.event.sender.login == 'GSchill25'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci && npx playwright install --with-deps chromium
+        working-directory: site
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: https://github.com/ai-engineering-scaffold/agent-team.git
+          plugins: scaffold-org@ai-engineering-scaffold
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE: #${{ github.event.issue.number }}
+
+            1. Use the scaffold-org:engineer subagent to implement this issue on a branch named after its spec
+               (spec-NNN/short-name), with unit tests, until `npm --prefix site run check` passes.
+            2. Use the scaffold-org:qa-automation subagent to add Playwright tests for the acceptance criteria
+               the issue covers, and run `npm --prefix site run build && npm --prefix site run test:e2e`.
+            3. Push the branch and open a PR with the repository's template that says "Closes #${{ github.event.issue.number }}".
+            If the issue is unclear, comment on it with the question instead of guessing, and stop.
+          claude_args: |
+            --max-turns 80
+            --allowedTools "Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*)"
