@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-23T21:24:20Z",
+  "workflow": "unblock",
+  "spec": "004",
+  "issue": 45,
+  "pr": null,
+  "cost_usd": 0.49277350000000003,
+  "turns": 4,
+  "duration_s": 131,
+  "outcome": "success"
+}
