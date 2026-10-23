@@ -22,7 +22,7 @@ Every agent job gets a small `record` job after it. The record job builds one JS
 - The `main` ruleset targets only the default branch, so no ruleset exception is needed. The record job pushes with the workflow's `GITHUB_TOKEN` (`contents: write`). That push starts no workflow, which is what we want.
 - A push to `metrics` is never a merge to `main`, so it doesn't start `agent-pipeline`.
 - **First run.** Nobody creates the branch by hand. When `git fetch origin metrics` finds no branch, the record script starts an orphan branch and pushes it. Every reader treats a missing branch as an empty ledger.
-- Readers: workflows run `git fetch --depth=1 origin metrics` and read the files from `FETCH_HEAD`. The site build downloads `https://codeload.github.com/<repo>/tar.gz/refs/heads/metrics` (public, no token) into `site/.ledger/` in a `prebuild` script. Setting `LEDGER_SKIP_FETCH=1` skips the download, and CI's `site` and `e2e` jobs set it so tests never depend on live branch data. Unpacking rejects any path that would land outside `site/.ledger/`, and the loader keeps only records that pass schema validation. If the download fails, the build continues and logs a warning, so a GitHub outage never breaks a deploy. The loader then returns `available: false`, distinct from an empty ledger, so the metrics page can say the data is unavailable instead of showing $0. `site/.ledger/` is added to `.gitignore`.
+- Readers: workflows run `git fetch --depth=1 origin metrics` and read the files from `FETCH_HEAD`. The site build downloads `https://codeload.github.com/<repo>/tar.gz/refs/heads/metrics` (public, no token) into `site/.ledger/` in a `prebuild` script. Setting `LEDGER_SKIP_FETCH=1` skips the download, and CI's `site` and `e2e` jobs set it so tests never depend on live branch data. Unpacking rejects any path that would land outside `site/.ledger/` and stops at 10 MB or 20,000 files, falling back to `available: false`, and the loader keeps only records that pass schema validation. If the download fails, the build continues and logs a warning, so a GitHub outage never breaks a deploy. The loader then returns `available: false`, distinct from an empty ledger, so the metrics page can say the data is unavailable instead of showing $0. `site/.ledger/` is added to `.gitignore`.
 
 ## 2. Recording runs that time out or are cancelled (AC2)
 
@@ -44,7 +44,9 @@ record:
     - `error`: anything else, including any other non-empty `subtype`.
 - **Finding `pr` for a build.** The build opens its PR partway through the run, so the record job looks it up afterwards: the open PR whose head branch matches `spec-NNN/issue-<N>-`. If there is none, `pr` is `null`.
 - **Field sources (AC1).** `date` is the run's start time (`run_started_at`). `duration_s` is the agent step's own start to end, or to when the job stopped if the step never finished; it is never the job's duration.
-- A run is recorded only if the agent step started; the record job checks that the step has a start time. That matches the spec's "a run that fails before the agent step starts is not recorded".
+- A run is recorded only if the agent step ran: its `conclusion` is not `skipped` and it has a start time. A skipped step still gets timestamps from the Jobs API, so a start time alone isn't enough. This covers `agent-fix` runs that its guard step stops (not a build PR, PR closed, or out of rounds), and matches the spec's "a run that fails before the agent step starts is not recorded". #19's tests include a fixture for "agent step skipped, so no record".
+- **Finding the agent job.** The job's name depends on how it ran: `agent-build.yml` shows as `build / build` when the pipeline calls it and `build` when started by hand. So each workflow passes the agent job's name to the record job as an env value, and the script matches the job whose name ends with it.
+- **`issue` for reviews and fixes.** A review or fix of a `spec-NNN/issue-N-` PR sets `issue` to N, from the branch. Any other PR has `issue: null`.
 
 ## 3. How workflows call the TypeScript
 
@@ -85,7 +87,7 @@ Record job permissions, listed in full so the diff doesn't hit a 403 that AC6's 
 | `pull-requests: read` | List open PRs for AC6 |
 | `issues: write` | Create and add the `over-budget` label (AC6) |
 
-`agent-build.yml` is a reusable workflow, and a called workflow can only use the permissions its caller grants. So the `build` job in `agent-pipeline.yml` must also grant `actions: read`; without it, GitHub rejects the called workflow and every pipeline-started build fails before the agent runs. #23's workflow diff includes that line, and it is tried with a pipeline-started build, not only with `workflow_dispatch`, which hides this problem.
+`agent-build.yml` is a reusable workflow, and a called workflow can only use the permissions its caller grants. So the `build` job in `agent-pipeline.yml` must also grant `actions: read`; without it, GitHub rejects the called workflow and every pipeline-started build fails before the agent runs. #23's workflow diff includes that line, and it is tried with a pipeline-started build, not only with `workflow_dispatch`, which hides this problem. #23 also pushes twice in quick succession to a PR and checks that both review runs are recorded, the first as `cancelled`, because `agent-review` cancels in-progress runs and a record job that is already running could be cut off.
 
 **Scripts run from `main`, never from the PR.** On `pull_request`, `actions/checkout` defaults to the PR's merge commit, so a PR could otherwise change the scripts that record it, rewrite the ledger with the record job's write token, or fake its own spend line. That would break the rule in `agent-review.yml` and `merge-gate.yml` that a PR never changes what reviews it. So:
 

@@ -23,6 +23,6 @@ Option 1. Records go to an orphan `metrics` branch as `ledger/YYYY/MM/<run_id>-<
 
 ## Consequences
 
-- The ruleset on `main` doesn't apply to `metrics`. Anyone with write access could edit or rewrite records there; git history keeps that visible.
+- The ruleset on `main` doesn't apply to `metrics`. Anyone with write access could edit or rewrite records there, and so could the build and fix agents, which run with `contents: write` and `git`. Graham adds a ruleset on `metrics` that blocks force-pushes and deletion, so history stays append-only; the record job only needs fast-forward pushes.
 - The site build depends on GitHub being reachable for current numbers, but never fails because of it.
 - If the branch grows large (thousands of runs), revisit with a monthly roll-up file.
