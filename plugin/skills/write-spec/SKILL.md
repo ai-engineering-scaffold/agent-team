@@ -11,13 +11,15 @@ A spec is done when an engineer can build it and QA can test it without asking a
 
 `specs/NNN-short-name.md`, where NNN is the next free three-digit number. Open it as a PR titled `spec: NNN short name`, with `status: approved` already set. Graham approves a spec by merging its PR (gate 1); there is no separate approval step. A spec he doesn't want stays open or is closed.
 
+Keep the status line exactly `status: approved`, with nothing after it, not even a comment. The agent pipeline matches that line exactly to find specs to plan. Later the status becomes `shipped` or `dropped`.
+
 ## Template
 
 ```markdown
 ---
 spec: NNN
 title: Short name of the feature
-status: approved # approved (on main once merged) | shipped | dropped
+status: approved
 budget_usd: 15 # AI spend allowed for this feature, all roles combined
 owner: Graham
 ---
