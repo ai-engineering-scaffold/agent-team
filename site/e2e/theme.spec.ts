@@ -156,3 +156,43 @@ for (const route of routes) {
     expect(contrastRatio(ringHex as string, bgHex as string)).toBeGreaterThanOrEqual(3);
   });
 }
+
+// Spec 004, AC3: headings and body text use two different fonts, both served from this site.
+
+/** First family of a computed font-family list, with its quotes removed. */
+function firstFamily(list: string): string {
+  return list.split(",")[0].trim().replace(/^["']+|["']+$/g, "");
+}
+
+for (const route of routes) {
+  test("AC3: " + route + " serves fonts same-origin and has loaded FontFaces for heading and body", async ({
+    page,
+  }) => {
+    const fontUrls: string[] = [];
+    page.on("request", (request) => {
+      if (request.resourceType() === "font") fontUrls.push(request.url());
+    });
+    await page.goto(route);
+    const origin = new URL(page.url()).origin;
+    await page.evaluate(() => document.fonts.ready);
+
+    for (const url of fontUrls) expect(new URL(url).origin, "font request " + url).toBe(origin);
+
+    const heading = page.getByRole("heading", { level: 1 }).first();
+    const paragraph = page.getByRole("paragraph").first();
+    const headingFamily = firstFamily(await heading.evaluate((el) => getComputedStyle(el).fontFamily));
+    const bodyFamily = firstFamily(await paragraph.evaluate((el) => getComputedStyle(el).fontFamily));
+
+    for (const family of [headingFamily, bodyFamily]) {
+      const statuses = await page.evaluate(
+        (name) =>
+          Array.from(document.fonts)
+            .filter((face) => face.family.replace(/^["']+|["']+$/g, "") === name)
+            .map((face) => face.status),
+        family,
+      );
+      expect(statuses, "FontFace for " + family).toContain("loaded");
+    }
+    expect(headingFamily).not.toBe(bodyFamily);
+  });
+}
