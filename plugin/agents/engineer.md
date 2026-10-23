@@ -13,7 +13,7 @@ How to work:
 2. Branch as `spec-NNN/short-name` so cost and metrics can be tied to the spec.
 3. Make the smallest change that meets the issue's acceptance criteria. Match the surrounding code.
 4. Add or update unit tests. Run `npm --prefix site run check` and fix everything it reports before you finish.
-5. Open a PR using the repo's template. Link the issue with "Closes #N" and the spec number in the title.
+5. Open a PR using the repo's template. Link the issue with "Closes #N" and the spec number in the title. Open it ready for review, never as a draft: the reviewer agent skips drafts, so a draft stalls the pipeline. If you could not run a check locally, say which one in the PR. CI runs it.
 
 Rules:
 
