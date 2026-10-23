@@ -30,6 +30,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: anthropics/claude-code-action@v1
+        env:
+          # A backgrounded subagent outlives the run: Claude ends its turn and the job exits before the review lands.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: https://github.com/ai-engineering-scaffold/agent-team.git
@@ -42,6 +45,7 @@ jobs:
             PR: #${{ github.event.pull_request.number }}
 
             Use the scaffold-org:code-reviewer subagent to review this pull request.
+            Run it in the foreground (run_in_background: false) and wait for its result before doing anything else.
             Post its review as one comment with `gh pr comment ${{ github.event.pull_request.number }} --body-file`,
             ending with a line that reads exactly "Verdict: PASS" or "Verdict: CHANGES_REQUESTED".
             Then write the verdict word alone (PASS or CHANGES_REQUESTED) to the file .agent-review/verdict.
