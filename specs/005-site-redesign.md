@@ -13,6 +13,7 @@ Spec 004 gave the site a theme, but Graham doesn't like the result. The spacing 
 ## Users and stories
 
 - As a visitor, I want a site that looks polished and technical, so that I trust the engineering behind it.
+- As a visitor, I want a way to contact the org from any page, so that I can reach Graham.
 - As a visitor, I want dates, statuses and numbers I can read at a glance, so that I can scan the decision log and metrics quickly.
 - As a visitor on a phone, I want to see every table's content without scrolling sideways, so that the site works where I read it.
 
@@ -26,7 +27,8 @@ Spec 004 gave the site a theme, but Graham doesn't like the result. The spacing 
 - **AC6.** Given a 1280 px wide viewport, when the decisions index or a metrics table renders, then no header cell wraps, and no date, number, identifier or badge cell wraps. Only free-text columns (Decision, Title) may wrap.
 - **AC7.** Given a 375 px wide viewport, when any page with a table loads (the decisions index, the metrics page and ADR 0002), then neither the page nor any table scrolls sideways (`scrollWidth <= clientWidth` for the document and for every table and its container), every cell's full text is visible with nothing clipped or hidden, and each cell's value can still be read together with its column's name. No horizontal scroll bar or scroll shadow appears.
 - **AC8.** Given the main navigation, when a visitor uses it on desktop or at 375 px, then the current page is marked with `aria-current="page"` and looks different by more than colour, and every link has visible hover and keyboard-focus states.
-- **AC9.** Given the existing Playwright suite, when it runs after this change, then every test passes. Tests that assert spec 004's palette, fonts, table styling or nav tab styling (the `theme.spec.ts` AC1 and AC3 tests, the `tables.spec.ts` AC2, AC6 and AC7 style checks, and the `nav.spec.ts` AC4 fill and weight checks) are replaced by this spec's tests for the same concern. Every other test is unchanged, except where it located something by text this spec changed on purpose. No other assertion is removed or loosened.
+- **AC9.** Given any page, when it loads, then a footer (a `contentinfo` landmark) shows "© YYYY AI Engineering Scaffold", where YYYY is the year the site was built, and a "Contact us" link whose `href` is `mailto:schill1025@gmail.com`. The footer follows the same spacing scale and stays on one or two lines at 375 px.
+- **AC10.** Given the existing Playwright suite, when it runs after this change, then every test passes. Tests that assert spec 004's palette, fonts, table styling or nav tab styling (the `theme.spec.ts` AC1 and AC3 tests, the `tables.spec.ts` AC2, AC6 and AC7 style checks, and the `nav.spec.ts` AC4 fill and weight checks) are replaced by this spec's tests for the same concern. Every other test is unchanged, except where it located something by text this spec changed on purpose. No other assertion is removed or loosened.
 
 ## Design input
 
@@ -38,11 +40,12 @@ Graham, 2026-10-23:
 - Dates should be formatted, not raw. Common statuses should be badges.
 - Tables need better spacing, so there isn't so much text wrapping. They should not be cut off on mobile or show horizontal scroll indicators.
 - "Be creative!" The tech lead has room to choose the details: type scale, a monospace accent for identifiers such as ADR numbers and dollar amounts, subtle borders and surfaces, how tables reflow on a phone, and small touches that show care. All of it stays within the criteria above.
+- Add a site footer with this year's copyright, the name "AI Engineering Scaffold", and a "Contact us" link that opens an email to schill1025@gmail.com (Graham, 2026-10-23).
 - Build it as one issue, so the redesign lands in one PR.
 
 ## Non-goals
 
-- New pages or copy changes, other than labels a reflowed table or badge needs.
+- New pages or copy changes, other than the footer (AC9) and labels a reflowed table or badge needs.
 - A dark mode. A theme that follows the system's dark preference could be a later spec.
 - Charts, illustrations, a logo, or animation beyond short hover and focus transitions.
 - Changes to the pipeline, the ledger or how pages get their data.
