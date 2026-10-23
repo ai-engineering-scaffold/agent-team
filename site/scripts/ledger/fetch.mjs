@@ -7,8 +7,12 @@
 // capped at 10 MB (compressed and unpacked) and 20,000 files, every entry name is checked
 // before system `tar` unpacks it, and the unpacked tree is checked again for symlinks and
 // paths outside `site/.ledger/`.
+//
+// With `LEDGER_SKIP_FETCH=1` (CI's `site` and `e2e` jobs) it copies the committed e2e fixture
+// ledger instead, so Playwright tests a fixed ledger (design 003). Never on Vercel (`VERCEL=1`),
+// so a misconfigured production build shows "unavailable", never fixture numbers.
 import { execFile } from "node:child_process";
-import { lstat, mkdir, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -20,6 +24,8 @@ export const LEDGER_URL = "https://codeload.github.com/ai-engineering-scaffold/a
 export const MAX_BYTES = 10 * 1024 * 1024;
 export const MAX_FILES = 20_000;
 export const SITE_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+// The committed fixture records, relative to the site directory.
+export const FIXTURE_LEDGER = path.join("e2e", "fixtures", "ledger", "ledger");
 
 /**
  * True when `entry`, resolved against `root`, is `root` itself or somewhere beneath it.
@@ -110,6 +116,7 @@ async function readCapped(res, maxBytes) {
 /**
  * @typedef {{
  *   siteDir?: string,
+ *   fixtureDir?: string,
  *   url?: string,
  *   env?: Record<string, string | undefined>,
  *   fetchImpl?: typeof fetch,
@@ -120,13 +127,15 @@ async function readCapped(res, maxBytes) {
  */
 
 /**
- * Downloads and unpacks the ledger. Resolves to what happened and never rejects.
+ * Downloads and unpacks the ledger, or copies the e2e fixture when `LEDGER_SKIP_FETCH=1`.
+ * Resolves to what happened and never rejects.
  * @param {FetchOptions} [options]
- * @returns {Promise<"skipped" | "fetched" | "missing" | "failed">}
+ * @returns {Promise<"skipped" | "fixture" | "fetched" | "missing" | "failed">}
  */
 export async function fetchLedger(options = {}) {
   const {
     siteDir = SITE_DIR,
+    fixtureDir = path.join(siteDir, FIXTURE_LEDGER),
     url = LEDGER_URL,
     env = process.env,
     fetchImpl = fetch,
@@ -135,12 +144,28 @@ export async function fetchLedger(options = {}) {
     maxFiles = MAX_FILES,
   } = options;
 
-  if (env.LEDGER_SKIP_FETCH === "1") {
-    log("LEDGER_SKIP_FETCH=1, so the ledger was not downloaded");
-    return "skipped";
-  }
-
   const ledgerDir = path.join(siteDir, ".ledger");
+
+  if (env.LEDGER_SKIP_FETCH === "1") {
+    // Vercel sets VERCEL=1 on every build. There, skipping leaves no ledger at all, so the page
+    // says the data is unavailable rather than showing fixture numbers as if they were real.
+    if (env.VERCEL === "1") {
+      await rm(ledgerDir, { recursive: true, force: true }).catch(() => {});
+      log("LEDGER_SKIP_FETCH=1 on Vercel, so the ledger was not downloaded and the e2e fixture was not used");
+      return "skipped";
+    }
+    try {
+      await rm(ledgerDir, { recursive: true, force: true });
+      await cp(fixtureDir, path.join(ledgerDir, "ledger"), { recursive: true });
+      await checkTree(ledgerDir, { maxFiles, maxBytes });
+      log("LEDGER_SKIP_FETCH=1, so the e2e fixture ledger was copied");
+      return "fixture";
+    } catch (error) {
+      await rm(ledgerDir, { recursive: true, force: true }).catch(() => {});
+      log(`could not copy the e2e fixture ledger, so it is unavailable: ${error instanceof Error ? error.message : String(error)}`);
+      return "failed";
+    }
+  }
   const extractDir = path.join(ledgerDir, ".extract");
   const archive = path.join(ledgerDir, "metrics.tar");
 

@@ -1,0 +1,11 @@
+{
+  "date": "2026-08-25T09:00:00Z",
+  "workflow": "plan",
+  "spec": "002",
+  "issue": null,
+  "pr": null,
+  "cost_usd": 1.25,
+  "turns": 10,
+  "duration_s": 300,
+  "outcome": "success"
+}

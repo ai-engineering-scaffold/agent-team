@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-21T14:05:00Z",
+  "workflow": "fix",
+  "spec": "003",
+  "issue": 34,
+  "pr": 35,
+  "cost_usd": 1.05,
+  "turns": 14,
+  "duration_s": 400,
+  "outcome": "success"
+}

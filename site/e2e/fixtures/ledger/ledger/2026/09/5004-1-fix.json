@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-09T08:15:00Z",
+  "workflow": "fix",
+  "spec": "002",
+  "issue": 19,
+  "pr": 21,
+  "cost_usd": null,
+  "turns": null,
+  "duration_s": 3600,
+  "outcome": "timeout"
+}
