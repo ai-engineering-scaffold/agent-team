@@ -5,3 +5,5 @@ node_modules/
 .claude/cost-ledger.local.jsonl
 .claude/settings.local.json
 .agent-review/
+# the metrics branch, downloaded by site's prebuild for the ledger loader
+site/.ledger/
