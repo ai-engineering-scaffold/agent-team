@@ -20,14 +20,14 @@ The README promises weekly numbers on shipping speed, defect rate and AI spend p
 
 The ledger is built in workflows, so most criteria are checked by unit tests in `site/tests/` against fixture files, not by Playwright. Each says how it is checked.
 
-- **AC1.** Given an agent run in the plan, build, review or fix workflow, when the run ends, then the ledger gains one record with: date, workflow, spec (or `none` for chores), issue and PR (or empty), cost in API-equivalent dollars, turns, duration of the agent step in seconds, and outcome. Checked by a unit test of the record builder against fixture outputs of a successful run.
+- **AC1.** Given an agent run, when it ends, then the ledger gains one record with: date, workflow (`plan` for the plan job in `agent-pipeline.yml`, `build` for `agent-build.yml`, `review` for `agent-review.yml`, `fix` for `agent-fix.yml`), spec (or `none` for chores), issue and PR (or empty), cost in API-equivalent dollars, turns, duration of the agent step in seconds, and outcome. Checked by a unit test of the record builder against fixture outputs of a successful run.
 - **AC2.** Given any run, when it is recorded, then its outcome is exactly one of `success`, `error`, `max_turns`, `timeout` or `cancelled`. A run that times out or is cancelled after the agent started is still recorded, and when the agent reported no result, its cost and turns are `null`. Checked by the same unit test with a fixture for each outcome.
 - **AC3.** Given a record, then it contains exactly the AC1 fields: no prompt text, transcript, token counts or credentials. Checked by a schema test that rejects any extra field.
 - **AC4.** Given the ledger, when the site is built, then a loader in `site/lib/` returns every record and, per spec (with `none` as its own group), the total cost, the run count and the number of runs with no cost. Checked by a unit test against a fixture ledger.
-- **AC5.** Given a build PR, when the agent review posts its comment, then the comment includes a line with the spec's spend so far against its `budget_usd`, and the count of runs with no cost. Checked by a unit test of the line formatter.
-- **AC6.** Given a run is recorded and its spec's total then exceeds `budget_usd`, then the spec's open PR, or with none its lowest-numbered open issue, gets the `over-budget` label (created if missing), and the pipeline keeps building. Checked by a unit test of the function that picks the label target.
+- **AC5.** Given a build PR, when the agent review posts its comment, then the comment includes a line with the spec's spend so far against its `budget_usd`, and the count of runs with no cost. A chore PR (spec `none`) shows its total with no budget. Checked by a unit test of the line formatter.
+- **AC6.** Given a run is recorded and its spec's total then exceeds `budget_usd`, then the spec's open PR, or with none its lowest-numbered open issue, gets the `over-budget` label (created if missing), and the pipeline keeps building. The `none` group has no budget and is never labelled. Checked by a unit test of the function that picks the label target.
 
-None of these criteria has a Playwright test: they have no page. The metrics page spec will add those.
+None of these criteria has a page, so none has a Playwright test. That departs from the definition of done in `CLAUDE.md`, so it needs Graham's approval and an ADR before the build starts (see open questions).
 
 ## Non-goals
 
@@ -42,6 +42,8 @@ None of these criteria has a Playwright test: they have no page. The metrics pag
 For the first spec built after this ships, the ledger's total over runs that have a cost matches the sum of those runs' Actions logs, within a cent.
 
 ## Open questions
+
+- For Graham: approve unit tests, not Playwright, for criteria that have no page. The tech lead records it in an ADR at gate 2, with a proposed wording change to the definition of done.
 
 - For the tech lead: where the ledger lives. Main only takes changes through PRs, so a workflow can't append to a file there, and the static site build must still be able to read it (AC4). Options include a dedicated `metrics` branch or a weekly PR that adds the week's records to `metrics/` (a low-risk path). This needs a design (gate 2).
 - For the tech lead: a step inside a job that times out or is cancelled may not run, so AC2 may need recording in a separate job that runs after the agent's job.
