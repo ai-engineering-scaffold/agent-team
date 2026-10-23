@@ -1,7 +1,7 @@
 ---
 spec: 001
 title: How we work page
-status: draft
+status: approved
 budget_usd: 15
 owner: Graham
 ---
