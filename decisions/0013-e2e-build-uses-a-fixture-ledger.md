@@ -2,7 +2,7 @@
 title: The e2e build copies a fixture ledger when the fetch is skipped
 status: proposed
 date: 2026-10-23
-decided_by: Proposed by tech-lead agent
+decided_by: Proposed by tech-lead agent, approved by Graham
 ---
 
 ## Context

@@ -31,8 +31,7 @@ test("AC6: states the newest run's date and time in UTC", async ({ page }) => {
 
 test("AC6: says dollars are API-equivalent and links ADR 0007", async ({ page }) => {
   await page.goto("/metrics");
-  await expect(page.getByText(/API-equivalent/)).toBeVisible();
-  await expect(page.getByText(/subscription/)).toBeVisible();
+  await expect(page.getByText(/API-equivalent costs: agents run on a Claude subscription/)).toBeVisible();
   const link = page.getByRole("link", { name: "ADR 0007" });
   await expect(link).toHaveAttribute("href", /\/decisions\/0007-/);
   await link.click();
