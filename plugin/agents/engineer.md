@@ -1,6 +1,6 @@
 ---
 name: engineer
-description: Implements one GitHub issue end to end with unit tests, then opens a PR. Use when an issue is labelled agent:build or when asked to build a sliced issue.
+description: Implements one GitHub issue end to end with unit tests, then opens a PR. Use when the agent pipeline starts a build, or when asked to build a sliced issue.
 tools: Read, Grep, Glob, Write, Edit, Bash
 model: sonnet
 ---
