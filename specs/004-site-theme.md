@@ -1,0 +1,54 @@
+---
+spec: 004
+title: Site theme
+status: approved
+budget_usd: 20
+owner: Graham
+---
+
+## Problem
+
+The site has been structure-only while it waited for Graham's theme: browser-default fonts, a nav of plain links and bare tables. Visitors, including hiring managers, judge a portfolio in seconds, and today it reads as unfinished. Graham has now given the theme's direction: his palette, a better global nav, and restyled tables and fonts.
+
+## Users and stories
+
+- As a visitor, I want a clean, professional site, so that I take the org's work seriously.
+- As a visitor, I want a nav that clearly shows where I am and is easy to use on a phone, so that I can move between pages without hunting for links.
+- As a visitor, I want tables I can scan quickly, so that I can read the metrics without effort.
+
+## Acceptance criteria
+
+- **AC1.** Given any page, when it loads, then its colours come only from Graham's palette (below), plus white or a darker shade of a palette colour where text needs it. The page background is the cream `#E8E1CF` or white.
+- **AC2.** Given any page, when an automated contrast check runs, then body text meets WCAG AA (4.5:1) and large text and UI controls meet 3:1. If a palette colour fails as text on its background, it is used only where it passes, for example as a border or fill.
+- **AC3.** Given any page, when it loads, then headings and body text use web fonts served from this site, with no request to a third-party font host at runtime and no visible change of font after the page has loaded. The fonts are free and licensed for commercial use.
+- **AC4.** Given any page, when a visitor looks at the main navigation, then the link to the current page is marked with `aria-current="page"` and looks different from the other links, by a shape or weight change and not only by colour. Every nav link has visible hover and keyboard-focus states.
+- **AC5.** Given a 375 px wide viewport, when a page loads, then every nav link can be reached and the page does not scroll horizontally. If the links sit behind a menu button, that button has the accessible name "Menu", reports whether it is open, and works with the keyboard.
+- **AC6.** Given a table on any page (the two metrics tables, and tables in rendered decisions or specs), when it renders, then the header row is set apart from the body rows, rows have separators or alternating fills, and numeric columns are right-aligned with tabular figures.
+- **AC7.** Given a "Spend by spec" row that is "Over budget", when it renders, then the row is visibly highlighted and still shows the words "Over budget", so the status doesn't depend on colour alone.
+- **AC8.** Given the existing Playwright suite, when it runs after this change, then every test still passes, with each test unchanged except where it located something by text this spec changed on purpose.
+
+## Design input
+
+Graham, 2026-10-23:
+
+- Palette: `#7A8B5A` (olive), `#B9B08C` (sage), `#E8E1CF` (cream), `#4F5B3A` (dark olive), `#A86B4C` (terracotta).
+- "Very clean styles and an appealing professional look."
+- Make the global nav a lot better than plain hyperlinks. Update the tables and fonts to match the same design ideas.
+
+Measured against the cream background, only the dark olive `#4F5B3A` passes AA for body text (5.6:1). The terracotta reaches 3.3:1, so it works for large text, borders and fills, not body text. The tech lead assigns colour roles within AC1 and AC2, picks the fonts within AC3, and records both in an ADR.
+
+## Non-goals
+
+- Dark mode. The palette is a light theme. The site drops `color-scheme: light dark` until a dark palette is given.
+- New pages, content or copy changes, other than small layout text such as a menu button label.
+- Charts, illustrations, a logo or animation beyond simple hover and focus transitions.
+
+## Success metric
+
+Graham looks at the production site on a laptop and a phone, after the last build PR merges, and finds no page that still looks unstyled.
+
+## Open questions
+
+- For Graham (design input): do you have a font in mind, or a feel to aim for, such as a classic serif for headings or an all-sans look? If not, the tech lead picks within AC3.
+- For the tech lead: how to test AC2. An axe-based check adds a dev dependency, and the PR must name it. A computed-colour check needs no new dependency but only covers the elements it names.
+- For the tech lead: `CLAUDE.md` says "Do not add visual design until Graham provides the theme", and the `globals.css` header says the same. The first build PR updates both, since this spec is that theme.
