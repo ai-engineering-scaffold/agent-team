@@ -1,0 +1,83 @@
+# Design: cost and cycle-time ledger (spec 002)
+
+Spec: [specs/002-cost-ledger.md](../../specs/002-cost-ledger.md) · Issue: #18 · ADRs: [0010](../../decisions/0010-cost-ledger-lives-on-a-metrics-branch.md), [0011](../../decisions/0011-unit-tests-for-criteria-without-a-page.md)
+
+## Summary
+
+Every agent job gets a small `record` job after it. The record job builds one JSON record from the agent job's result and pushes it, as its own file, to a `metrics` branch that holds nothing else. The review job and the record job read that branch for the spend line (AC5) and the over-budget label (AC6). The site build downloads the branch as a tarball for the loader (AC4). The logic lives in `site/lib/ledger/` as plain TypeScript, unit-tested with Vitest, and workflows run it with Node 22's built-in type stripping.
+
+## 1. Where the ledger lives
+
+| Option | Fresh within minutes (AC5, AC6) | Readable by the site build (AC4) | Cost |
+| --- | --- | --- | --- |
+| **A. `metrics` branch** | Yes | Yes, as a public tarball | Push retries; one more ref to read |
+| B. Artifacts or cache | Yes | No | Expires after 90 days or is evicted |
+| C. Comments on a tracking issue | Yes | Only with an API token at build | Data isn't in the repo |
+| D. Bot PR per run, auto-merged | No: a PR and CI per run | Yes | Changes `low-risk-paths.txt`; doubles CI |
+| E. Separate repo | Yes | Yes | A second repo and a cross-repo token |
+
+**Choice: A** ([ADR 0010](../../decisions/0010-cost-ledger-lives-on-a-metrics-branch.md)).
+
+- The branch is an orphan branch with one file per run: `ledger/YYYY/MM/<run_id>-<attempt>-<job>.json`. Separate files mean concurrent runs never edit the same file, so a rejected push is fixed by `git pull --rebase` and one retry (up to three tries).
+- The `main` ruleset targets only the default branch, so no ruleset exception is needed. The record job pushes with the workflow's `GITHUB_TOKEN` (`contents: write`). That push starts no workflow, which is what we want.
+- A push to `metrics` is never a merge to `main`, so it doesn't start `agent-pipeline`.
+- Readers: workflows run `git fetch --depth=1 origin metrics` and read the files from `FETCH_HEAD`. The site build downloads `https://codeload.github.com/<repo>/tar.gz/refs/heads/metrics` (public, no token) into `site/.ledger/` in a `prebuild` script. If the download fails, the build continues with an empty ledger and logs a warning, so a GitHub outage never breaks a deploy.
+
+## 2. Recording runs that time out or are cancelled (AC2)
+
+A step inside the agent job may not run when that job is cancelled or times out. So recording is a separate job:
+
+```yaml
+record:
+  needs: agent        # the job that runs claude-code-action
+  if: always()
+```
+
+- **The agent job** adds a final `if: always()` step that reads the action's `execution_file` and writes `cost_usd`, `turns` and `subtype` as job outputs. These are three numbers or words, never the transcript. If the job is cancelled before that step, the outputs are empty, and the record has `null` cost and turns.
+- **The record job** reads `needs.agent.result` and the agent job's start and end times from the Jobs API, then maps them to `outcome`:
+  - `success`: the job succeeded.
+  - `max_turns`: `subtype` is `error_max_turns`.
+  - `timeout`: the job failed or was cancelled, and its elapsed time is within 60 seconds of its `timeout-minutes`.
+  - `cancelled`: the job was cancelled otherwise, for example by `cancel-in-progress` on a new push.
+  - `error`: anything else.
+- A run is recorded only if the agent step started; the record job checks that the step has a start time. That matches the spec's "a run that fails before the agent step starts is not recorded".
+
+## 3. How workflows call the TypeScript
+
+| Option | New dependency | Notes |
+| --- | --- | --- |
+| **A. Node 22 type stripping** | None | Run `node site/scripts/ledger/record.ts` directly. Needs erasable-only syntax (no enums or namespaces) and `.ts` extensions in relative imports. |
+| B. `tsx` | Yes (dev) | Most forgiving, but a new dependency for three scripts. |
+| C. `tsc` build step | None | An extra compile step in each workflow and output to keep out of the repo. |
+
+**Choice: A.** Node 22.18 and later strip types without a flag, and the workflows already pin Node 22. The engineer sets `allowImportingTsExtensions` in `site/tsconfig.json` so Next.js, Vitest and Node all accept the `.ts` imports. If that clashes with the Next.js build, B is the fallback, named in the PR as a new dependency.
+
+Files:
+
+- `site/lib/ledger/record.ts`: the schema, `buildRecord()` and `outcomeFor()` (AC1–AC3).
+- `site/lib/ledger/load.ts`: the loader and per-spec totals (AC4).
+- `site/lib/ledger/spend-line.ts`: the review comment line (AC5).
+- `site/lib/ledger/label-target.ts`: which PRs or issue get `over-budget` (AC6).
+- `site/scripts/ledger/*.ts`: thin CLI wrappers that call the above from workflows.
+
+## 4. Backfilling spec 001
+
+Review jobs run with `show_full_output: true`, so their logs include the final result with `total_cost_usd` and `num_turns`. The build and plan jobs don't print it. Logs are kept for 90 days. A full backfill isn't possible, and a partial one (reviews only) would make spec 001's total misleading. **Choice: no backfill.** Spec 001 is reported as "not recorded" on the metrics page.
+
+## 5. Workflow changes Graham applies
+
+Agents may not edit `.github/workflows/`, so the last issue (#23) writes the scripts and puts the exact workflow diff in its PR description. The diff covers:
+
+- an `if: always()` output step and a `record` job in `agent-build.yml`, `agent-fix.yml`, `agent-review.yml` and the plan job in `agent-pipeline.yml`;
+- the spend line added to the review prompt, read from a file the review job writes before Claude runs;
+- `contents: write` on the record jobs only.
+
+Untrusted values (branch names, labels, PR titles) reach scripts only through `env:`, never through `${{ }}` inside `run:`, and `spec` is matched against `^[0-9]{3}$` before use.
+
+## 6. Testing
+
+Per [ADR 0011](../../decisions/0011-unit-tests-for-criteria-without-a-page.md), AC1–AC6 are checked by Vitest tests in `site/tests/ledger/`, named after each criterion, with fixtures in `site/tests/fixtures/ledger/`: one execution result per outcome, a small ledger folder and PR and issue lists for the label target.
+
+## Build order
+
+The issues stay as sliced: #19 schema and builder, #20 loader, #21 spend line, #22 label target, #23 scripts and the proposed workflow diff. When Graham merges this design, he removes `design-needed` from #19–#23 and closes #18, and the pipeline builds #19 next.
