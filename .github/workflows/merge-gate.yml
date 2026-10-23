@@ -39,6 +39,10 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           EVENT: ${{ github.event_name }}
+          # ADR 0016: a merge made with the workflow token starts no workflows, so the pipeline would miss it.
+          # With Graham's MERGE_TOKEN secret, auto-merge is turned on as him and the merge starts the next step
+          # at once. Without it, agent-pipeline's schedule picks the merge up.
+          MERGE_TOKEN: ${{ secrets.MERGE_TOKEN || github.token }}
         run: |
           set -euo pipefail
           mapfile -t allow < <(grep -vE '^\s*(#|$)' .github/low-risk-paths.txt)
@@ -57,7 +61,7 @@ jobs:
           if $low_risk && [ "${#files[@]}" -gt 0 ]; then
             echo "Every changed file is on the low-risk allowlist."
             if [ "$EVENT" = "pull_request_target" ] && [ "$SAME_REPO" = "true" ]; then
-              gh pr merge "$PR" --repo "$REPO" --auto --squash \
+              GH_TOKEN="$MERGE_TOKEN" gh pr merge "$PR" --repo "$REPO" --auto --squash \
                 || echo "::warning::Could not turn on auto-merge. Is 'Allow auto-merge' enabled in the repo settings?"
             fi
             exit 0
@@ -70,7 +74,7 @@ jobs:
             # ADR 0016: his approval is the merge decision, so the PR merges once the other checks pass.
             # A later push dismisses the approval, and this gate then fails again until he re-approves.
             if [ "$SAME_REPO" = "true" ]; then
-              gh pr merge "$PR" --repo "$REPO" --auto --squash \
+              GH_TOKEN="$MERGE_TOKEN" gh pr merge "$PR" --repo "$REPO" --auto --squash \
                 || echo "::warning::Could not turn on auto-merge. Is 'Allow auto-merge' enabled in the repo settings?"
             fi
             exit 0
