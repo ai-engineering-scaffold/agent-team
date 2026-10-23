@@ -60,3 +60,7 @@ npm --prefix site ci
 npm --prefix site run dev
 npm --prefix site run check
 ```
+
+## License
+
+[MIT](LICENSE)
