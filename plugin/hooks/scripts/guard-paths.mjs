@@ -1,5 +1,6 @@
 // PreToolUse guard for file edits. Exit 2 blocks the edit and shows stderr to Claude.
 // Two rules: protected files need Graham, and each subagent role writes only where it owns.
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -34,10 +35,27 @@ const OWNS = {
   scribe: [/^decisions\//, /^docs\//, /^metrics\//, /^CHANGELOG\.md$/],
   "code-reviewer": [],
 };
-const ENGINEER_NEVER = [/^specs\//, /^decisions\//];
+// ADR 0012: the engineer may add an ADR from its issue's Design section, and fix it in later rounds,
+// but never touch an ADR that is already on main.
+function onMain(file) {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "--quiet", "origin/main"], { cwd: root, stdio: "ignore" });
+  } catch {
+    block("origin/main is not fetched, so this ADR can't be checked. Run `git fetch origin main` and retry.");
+  }
+  try {
+    execFileSync("git", ["cat-file", "-e", `origin/main:${file}`], { cwd: root, stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-if (role === "engineer" && ENGINEER_NEVER.some((re) => re.test(rel))) {
-  block("specs and decisions belong to the spec writer and tech lead.");
+if (role === "engineer") {
+  if (/^specs\//.test(rel)) block("specs belong to the spec writer.");
+  if (/^decisions\//.test(rel) && onMain(rel)) {
+    block("this ADR is already on main. Supersede it with a new one, and say so in the PR.");
+  }
 }
 if (role in OWNS && !OWNS[role].some((re) => re.test(rel))) {
   block(`the ${role} role does not write here.`);

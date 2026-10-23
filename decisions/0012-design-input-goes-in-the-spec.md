@@ -21,7 +21,7 @@ Option 2. This supersedes the Design gate in ADR 0002; its roles and the other f
 
 - Specs gain an optional "Design input" section with Graham's constraints on how the feature is built. The tech lead treats it as fixed.
 - When a spec needs a real technical choice, the tech lead decides it while planning and writes the options, the choice and the reasons into a "Design" section of the first issue. No issue is labelled `design-needed`.
-- The engineer building that issue adds the design doc in `docs/design/` and a proposed ADR in `decisions/` in the same PR as the code. It never edits an existing ADR or spec.
+- The engineer building that issue adds the design doc in `docs/design/` and a proposed ADR in `decisions/` in the same PR as the code. It never edits a spec or an ADR that is already on main, and the path guard hook enforces this.
 
 The gates are now Spec, CI, Review and Merge.
 

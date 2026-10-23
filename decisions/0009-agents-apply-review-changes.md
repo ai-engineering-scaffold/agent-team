@@ -27,5 +27,5 @@ In the same change:
 ## Consequences
 
 - A build PR reaches Graham only once the reviewer passes it, or once it is blocked.
-- Gate 5 is unchanged: an approval covers one commit, so an automatic fix after Graham approves still needs a new approval.
+- The merge gate is unchanged: an approval covers one commit, so an automatic fix after Graham approves still needs a new approval.
 - Each fix round costs a build-sized run, and Opus raises the cost of every build. The two-round cap bounds it, and the cost ledger will show whether to revisit.

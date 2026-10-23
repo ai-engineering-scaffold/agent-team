@@ -37,6 +37,6 @@ The page ships through every gate of the pipeline it describes (spec, issues, en
 
 ## Open questions
 
-- Should the gate list also come from a file in the repo (for example a `docs/` page), or is it fine for the page to state the five gates in code since they change only by ADR?
+- Should the gate list also come from a file in the repo (for example a `docs/` page), or is it fine for the page to state the gates in code since they change only by ADR?
 - Should the page show which roles are deferred (security, release, eval steward, per ADR 0002)?
 - For the tech lead: the build reads `plugin/agents/` from outside `site/`. The decision log already does the same with `decisions/`, so this depends on Vercel including files outside the root directory, which is its default. Confirm this once Vercel deploys succeed.
