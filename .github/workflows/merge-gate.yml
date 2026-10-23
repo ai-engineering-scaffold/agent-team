@@ -3,6 +3,9 @@
 #
 # pull_request_target runs this file as it is on main, so a PR cannot rewrite its own gate.
 # It never checks out or runs the PR's code.
+#
+# A review doesn't run the gate on its own. It re-runs the gate's run for the PR's latest commit, so the PR keeps
+# one merge-gate check that turns green when Graham approves, instead of a red one next to a green one.
 name: merge-gate
 
 on:
@@ -11,16 +14,16 @@ on:
   pull_request_review:
     types: [submitted, dismissed]
 
-permissions:
-  contents: write
-  pull-requests: write
-
 env:
   MERGE_OWNER: GSchill25
 
 jobs:
   merge-gate:
+    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Read the allowlist from the base branch
         uses: actions/checkout@v5
@@ -68,3 +71,27 @@ jobs:
           fi
           echo "::error::This PR needs $MERGE_OWNER's approval on its latest commit."
           exit 1
+
+  refresh:
+    if: github.event_name == 'pull_request_review'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Re-run the gate for the latest commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          run_id="$(gh api "repos/$REPO/actions/workflows/merge-gate.yml/runs?event=pull_request_target&head_sha=$HEAD_SHA&per_page=1" \
+            --jq '.workflow_runs[0].id // empty')"
+          if [ -z "$run_id" ]; then
+            echo "::warning::No merge-gate run found for $HEAD_SHA. Push a commit to start one."
+            exit 0
+          fi
+          # A gate run that is still going may have read the reviews before this one landed, so let it finish first.
+          gh run watch "$run_id" --repo "$REPO" --interval 10 >/dev/null 2>&1 || true
+          gh run rerun "$run_id" --repo "$REPO"
+          echo "Re-ran merge-gate run $run_id against the latest reviews."

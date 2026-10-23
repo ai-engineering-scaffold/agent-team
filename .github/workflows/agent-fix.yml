@@ -1,0 +1,102 @@
+# Applies the reviewer's requested changes to an agent-built PR, so a CHANGES_REQUESTED review doesn't wait on a
+# person. agent-review starts this after a CHANGES_REQUESTED verdict; the push then runs CI and the review again.
+# It only touches build PRs (spec-NNN/issue-N-*) and stops after two rounds. See decisions/0009.
+name: agent-fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: PR number to fix
+        type: number
+        required: true
+
+concurrency:
+  group: agent-fix-${{ inputs.pr }}
+  cancel-in-progress: false
+
+env:
+  MAX_ROUNDS: 2
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - name: Check the PR is a build PR with rounds left
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ inputs.pr }}
+        run: |
+          set -euo pipefail
+          read -r ref state same_repo < <(gh api "repos/$REPO/pulls/$PR" \
+            --jq "[.head.ref, .state, (.head.repo.full_name == \"$REPO\")] | @tsv")
+          if [ "$state" != "open" ] || [ "$same_repo" != "true" ] || ! [[ "$ref" =~ ^spec-[0-9]{3}/issue-[0-9]+- ]]; then
+            echo "#$PR is not an open build PR from this repo, so it is left alone."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          rounds="$(gh api "repos/$REPO/pulls/$PR/commits" --paginate \
+            --jq '[.[] | select(.commit.message | startswith("Address agent review"))] | length')"
+          if [ "$rounds" -ge "$MAX_ROUNDS" ]; then
+            gh label create blocked --repo "$REPO" --color B60205 --description "Needs Graham before the pipeline retries it" 2>/dev/null || true
+            gh pr edit "$PR" --repo "$REPO" --add-label blocked
+            gh pr comment "$PR" --repo "$REPO" --body "The reviewer still requests changes after $rounds automatic fix rounds, so this PR is labelled \`blocked\` and needs Graham."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "Fix round $((rounds + 1)) of $MAX_ROUNDS on $ref."
+          { echo "run=true"; echo "ref=$ref"; } >> "$GITHUB_OUTPUT"
+
+      - if: steps.guard.outputs.run == 'true'
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.guard.outputs.ref }}
+          fetch-depth: 0
+      - if: steps.guard.outputs.run == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - if: steps.guard.outputs.run == 'true'
+        run: npm ci && npx playwright install --with-deps chromium
+        working-directory: site
+      - if: steps.guard.outputs.run == 'true'
+        uses: anthropics/claude-code-action@v1
+        env:
+          # A backgrounded subagent outlives the run: Claude ends its turn and the job exits before the work lands.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: https://github.com/ai-engineering-scaffold/agent-team.git
+          plugins: scaffold-org@ai-engineering-scaffold
+          # agent-review dispatches these runs, so their actor is the workflow bot. Only that bot is allowed,
+          # and only people with write access can dispatch a workflow at all.
+          allowed_bots: github-actions
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR: #${{ inputs.pr }}
+            BRANCH: ${{ steps.guard.outputs.ref }} (already checked out)
+
+            The reviewer agent requested changes on this PR. Its review is the latest comment on the PR that ends
+            with "Verdict: CHANGES_REQUESTED"; read it with `gh pr view ${{ inputs.pr }} --comments`.
+
+            Use the scaffold-org:engineer subagent, in the foreground, to address the review:
+            - Fix every blocking finding.
+            - Apply a suggestion only if it is small and stays within the files this PR already changes.
+            - Never skip, weaken or delete a test, and never edit `.github/`, `specs/`, `decisions/` or `plugin/hooks/`.
+            - Run `npm --prefix site run check`, then `npm --prefix site run build && npm --prefix site run test:e2e`,
+              and fix anything they report.
+            - Commit with a subject that starts "Address agent review: ", and push to the branch. Never force-push.
+            Then run `gh pr comment ${{ inputs.pr }} --body-file <file>` with a short list of what was fixed, and
+            each suggestion left as it is with the reason.
+            If a finding can't be fixed within the PR's scope, don't push a partial fix for it; say so in the comment.
+          claude_args: |
+            --max-turns 80
+            --allowedTools "Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
