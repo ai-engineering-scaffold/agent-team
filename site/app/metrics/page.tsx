@@ -7,10 +7,13 @@ import {
   formatBudget,
   formatSpend,
   formatUtc,
+  formatWeekSpend,
   metricsPageState,
+  runsByWeekRows,
   spendBySpecRows,
   UNAVAILABLE_MESSAGE,
   type SpendRow,
+  type WeekRow,
 } from "@/lib/metrics";
 import { listSpecs } from "@/lib/specs";
 
@@ -24,6 +27,7 @@ export default async function MetricsPage() {
   const ledger = await loadLedger();
   const state = metricsPageState(ledger);
   const spendRows = state.kind === "ready" ? spendBySpecRows(ledger.specs, await listSpecs()) : [];
+  const weekRows = state.kind === "ready" ? runsByWeekRows(ledger.records) : [];
   return (
     <>
       <h1>Metrics</h1>
@@ -44,7 +48,39 @@ export default async function MetricsPage() {
         <Link href={ADR_0010}>ADR 0010</Link>).
       </p>
       {state.kind === "ready" && <SpendBySpec rows={spendRows} />}
+      {state.kind === "ready" && <RunsByWeek rows={weekRows} />}
     </>
+  );
+}
+
+// Scrolls on its own like Spend by spec, so a narrow screen never scrolls the page (AC7).
+function RunsByWeek({ rows }: { rows: WeekRow[] }) {
+  return (
+    <section>
+      <h2 id="runs-by-week">Runs by week</h2>
+      <div className="table-scroll" role="region" aria-labelledby="runs-by-week" tabIndex={0}>
+        <table aria-labelledby="runs-by-week">
+          <thead>
+            <tr>
+              <th scope="col">Week starting</th>
+              <th scope="col">Runs</th>
+              <th scope="col">Spend</th>
+              <th scope="col">Runs not successful</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.weekStart}>
+                <th scope="row">{row.weekStart}</th>
+                <td>{row.runs}</td>
+                <td>{formatWeekSpend(row)}</td>
+                <td>{row.notSuccess}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

@@ -110,6 +110,57 @@ export function spendBySpecRows(summaries: readonly SpecSummary[], specs: readon
   return [...specRows, ...unknownRows, chores];
 }
 
+export const WEEKS_SHOWN = 8;
+const DAY_MS = 86_400_000;
+
+// One row of the "Runs by week" table (AC4).
+export interface WeekRow {
+  // The Monday the week starts on (UTC), as YYYY-MM-DD.
+  weekStart: string;
+  runs: number;
+  // Integer micro-dollars; a null `cost_usd` counts as a run with no spend.
+  totalCostMicros: number;
+  // Runs whose outcome was not "success".
+  notSuccess: number;
+}
+
+// Milliseconds at 00:00 UTC on the Monday of the week holding `ms`.
+function weekStartMs(ms: number): number {
+  const midnight = Math.floor(ms / DAY_MS) * DAY_MS;
+  const daysSinceMonday = (new Date(midnight).getUTCDay() + 6) % 7;
+  return midnight - daysSinceMonday * DAY_MS;
+}
+
+// The 8 weeks (Monday start, UTC) ending with the week of the newest run, newest first. Anchored
+// on the newest run rather than the build date, and independent of record order, so a fixed
+// ledger always gives the same table. Weeks with no runs give zeros; older runs are left out.
+export function runsByWeekRows(records: readonly LedgerRecord[]): WeekRow[] {
+  const newest = newestRun(records);
+  if (newest === null) return [];
+  const newestWeek = weekStartMs(Date.parse(newest));
+  const rows: WeekRow[] = Array.from({ length: WEEKS_SHOWN }, (_, i) => ({
+    weekStart: new Date(newestWeek - i * 7 * DAY_MS).toISOString().slice(0, 10),
+    runs: 0,
+    totalCostMicros: 0,
+    notSuccess: 0,
+  }));
+  for (const record of records) {
+    // Whole weeks back from the newest: both are UTC Monday midnights, and UTC has no DST.
+    const index = (newestWeek - weekStartMs(Date.parse(record.date))) / (7 * DAY_MS);
+    const row = rows[index];
+    if (row === undefined) continue;
+    row.runs += 1;
+    if (record.cost_usd !== null) row.totalCostMicros += toMicros(record.cost_usd);
+    if (record.outcome !== "success") row.notSuccess += 1;
+  }
+  return rows;
+}
+
+// A week's spend is always a dollar amount: an empty week is $0.00, not "Not recorded" (AC4).
+export function formatWeekSpend(row: Pick<WeekRow, "totalCostMicros">): string {
+  return dollars(row.totalCostMicros);
+}
+
 function dollars(micros: number): string {
   return `$${(micros / 1_000_000).toFixed(2)}`;
 }
