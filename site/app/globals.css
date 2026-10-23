@@ -1,0 +1,52 @@
+/*
+ * Structural styles only. The visual design waits for Graham's theme
+ * (see decisions/0005); keep this file small so the theme can replace it.
+ */
+:root {
+  color-scheme: light dark;
+  --measure: 42rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  line-height: 1.6;
+}
+
+.site-header,
+main {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.site-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.site-name {
+  font-weight: 600;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+}
+
+pre {
+  overflow-x: auto;
+}

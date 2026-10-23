@@ -1,0 +1,21 @@
+name: Brief
+description: An idea for the spec writer to turn into a spec
+labels: [brief]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who has the problem, and what does it cost them?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What good looks like
+      description: How we would know it worked.
+  - type: input
+    id: budget
+    attributes:
+      label: AI budget (USD)
+      placeholder: "15"

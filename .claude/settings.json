@@ -1,0 +1,16 @@
+{
+  "extraKnownMarketplaces": {
+    "ai-engineering-scaffold": {
+      "source": {
+        "source": "github",
+        "repo": "ai-engineering-scaffold/agent-team"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "scaffold-org@ai-engineering-scaffold": true
+  },
+  "permissions": {
+    "deny": ["Read(./.env)", "Read(./.env.*)", "Read(./**/.env)", "Read(./**/.env.*)"]
+  }
+}

@@ -1,0 +1,70 @@
+# Gate 5. Passes when every changed file is on the low-risk allowlist (and then turns on auto-merge),
+# or when Graham has approved the PR's latest commit. See decisions/0006.
+#
+# pull_request_target runs this file as it is on main, so a PR cannot rewrite its own gate.
+# It never checks out or runs the PR's code.
+name: merge-gate
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  MERGE_OWNER: GSchill25
+
+jobs:
+  merge-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the allowlist from the base branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          sparse-checkout: .github/low-risk-paths.txt
+          sparse-checkout-cone-mode: false
+      - name: Decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          mapfile -t allow < <(grep -vE '^\s*(#|$)' .github/low-risk-paths.txt)
+          mapfile -t files < <(gh pr view "$PR" --repo "$REPO" --json files --jq '.files[].path')
+
+          low_risk=true
+          for f in "${files[@]}"; do
+            ok=false
+            for p in "${allow[@]}"; do
+              # A line ending in / allows everything under that folder; any other line is one exact file.
+              if [[ "$p" == */ && "$f" == "$p"* ]] || [[ "$f" == "$p" ]]; then ok=true; break; fi
+            done
+            if ! $ok; then echo "Not low-risk: $f"; low_risk=false; fi
+          done
+
+          if $low_risk && [ "${#files[@]}" -gt 0 ]; then
+            echo "Every changed file is on the low-risk allowlist."
+            if [ "$EVENT" = "pull_request_target" ] && [ "$SAME_REPO" = "true" ]; then
+              gh pr merge "$PR" --repo "$REPO" --auto --squash \
+                || echo "::warning::Could not turn on auto-merge. Is 'Allow auto-merge' enabled in the repo settings?"
+            fi
+            exit 0
+          fi
+
+          state="$(gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq "[.[] | select(.user.login == \"$MERGE_OWNER\" and .commit_id == \"$HEAD_SHA\" and (.state == \"APPROVED\" or .state == \"CHANGES_REQUESTED\" or .state == \"DISMISSED\"))] | last | .state // \"\"")"
+          if [ "$state" = "APPROVED" ]; then
+            echo "$MERGE_OWNER approved the latest commit."
+            exit 0
+          fi
+          echo "::error::This PR needs $MERGE_OWNER's approval on its latest commit."
+          exit 1
