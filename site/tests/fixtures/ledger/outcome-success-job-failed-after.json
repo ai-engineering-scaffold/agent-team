@@ -1,0 +1,28 @@
+{
+  "description": "review whose agent step succeeded, then the job failed on a CHANGES_REQUESTED verdict: still success",
+  "input": {
+    "workflow": "review",
+    "runStartedAt": "2026-10-23T15:30:00Z",
+    "agentOutput": { "subtype": "success", "cost_usd": "0.55", "turns": "11" },
+    "job": { "result": "failure", "startedAt": "2026-10-23T15:30:04Z", "completedAt": "2026-10-23T15:35:10Z", "timeoutMinutes": 20 },
+    "agentStep": { "conclusion": "success", "startedAt": "2026-10-23T15:30:20Z", "completedAt": "2026-10-23T15:35:00Z" },
+    "planSpec": null,
+    "branch": "spec-002/issue-19-ledger-record",
+    "labels": [],
+    "pr": 30
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T15:30:00Z",
+      "workflow": "review",
+      "spec": "002",
+      "issue": 19,
+      "pr": 30,
+      "cost_usd": 0.55,
+      "turns": 11,
+      "duration_s": 280,
+      "outcome": "success"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "description": "fix run that hit its turn limit",
+  "input": {
+    "workflow": "fix",
+    "runStartedAt": "2026-10-23T17:00:00Z",
+    "agentOutput": { "subtype": "error_max_turns", "cost_usd": "3.02", "turns": "60" },
+    "job": { "result": "failure", "startedAt": "2026-10-23T17:00:03Z", "completedAt": "2026-10-23T17:40:00Z", "timeoutMinutes": 60 },
+    "agentStep": { "conclusion": "failure", "startedAt": "2026-10-23T17:00:30Z", "completedAt": "2026-10-23T17:39:30Z" },
+    "planSpec": null,
+    "branch": "spec-002/issue-21-spend-line",
+    "labels": [],
+    "pr": 33
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T17:00:00Z",
+      "workflow": "fix",
+      "spec": "002",
+      "issue": 21,
+      "pr": 33,
+      "cost_usd": 3.02,
+      "turns": 60,
+      "duration_s": 2340,
+      "outcome": "max_turns"
+    }
+  }
+}

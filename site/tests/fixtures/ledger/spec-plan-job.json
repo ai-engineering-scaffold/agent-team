@@ -1,0 +1,29 @@
+{
+  "description": "plan job: spec comes from the plan job's spec number",
+  "input": {
+    "workflow": "plan",
+    "runStartedAt": "2026-10-23T09:00:00Z",
+    "agentOutput": { "subtype": "success", "cost_usd": "0.8312", "turns": "14" },
+    "job": { "result": "success", "startedAt": "2026-10-23T09:00:05Z", "completedAt": "2026-10-23T09:06:40Z", "timeoutMinutes": 20 },
+    "agentStep": { "conclusion": "success", "startedAt": "2026-10-23T09:00:30Z", "completedAt": "2026-10-23T09:06:30Z" },
+    "planSpec": "002",
+    "branch": null,
+    "labels": [],
+    "issue": null,
+    "pr": null
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T09:00:00Z",
+      "workflow": "plan",
+      "spec": "002",
+      "issue": null,
+      "pr": null,
+      "cost_usd": 0.8312,
+      "turns": 14,
+      "duration_s": 360,
+      "outcome": "success"
+    }
+  }
+}

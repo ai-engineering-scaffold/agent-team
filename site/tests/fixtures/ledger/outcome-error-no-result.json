@@ -1,0 +1,29 @@
+{
+  "description": "plan job whose agent step crashed without a result, well before the timeout: error with no cost",
+  "input": {
+    "workflow": "plan",
+    "runStartedAt": "2026-10-23T16:30:00Z",
+    "agentOutput": { "subtype": "", "cost_usd": "", "turns": "" },
+    "job": { "result": "failure", "startedAt": "2026-10-23T16:30:05Z", "completedAt": "2026-10-23T16:31:30Z", "timeoutMinutes": 20 },
+    "agentStep": { "conclusion": "failure", "startedAt": "2026-10-23T16:30:30Z", "completedAt": "2026-10-23T16:31:20Z" },
+    "planSpec": "002",
+    "branch": null,
+    "labels": [],
+    "issue": null,
+    "pr": null
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T16:30:00Z",
+      "workflow": "plan",
+      "spec": "002",
+      "issue": null,
+      "pr": null,
+      "cost_usd": null,
+      "turns": null,
+      "duration_s": 50,
+      "outcome": "error"
+    }
+  }
+}

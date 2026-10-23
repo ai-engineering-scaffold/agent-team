@@ -1,0 +1,15 @@
+{
+  "description": "fix run stopped by its guard step: the agent step is skipped but still has timestamps, so not recorded",
+  "input": {
+    "workflow": "fix",
+    "runStartedAt": "2026-10-23T14:00:00Z",
+    "agentOutput": { "subtype": "", "cost_usd": "", "turns": "" },
+    "job": { "result": "success", "startedAt": "2026-10-23T14:00:02Z", "completedAt": "2026-10-23T14:00:30Z", "timeoutMinutes": 60 },
+    "agentStep": { "conclusion": "skipped", "startedAt": "2026-10-23T14:00:25Z", "completedAt": "2026-10-23T14:00:25Z" },
+    "planSpec": null,
+    "branch": "spec-002/issue-19-ledger-record",
+    "labels": [],
+    "pr": 30
+  },
+  "expected": { "recorded": false }
+}

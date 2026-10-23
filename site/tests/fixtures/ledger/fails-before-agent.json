@@ -1,0 +1,16 @@
+{
+  "description": "build job failed during setup, before the agent step existed: not recorded",
+  "input": {
+    "workflow": "build",
+    "runStartedAt": "2026-10-23T13:00:00Z",
+    "agentOutput": null,
+    "job": { "result": "failure", "startedAt": "2026-10-23T13:00:03Z", "completedAt": "2026-10-23T13:00:20Z", "timeoutMinutes": 60 },
+    "agentStep": null,
+    "planSpec": null,
+    "branch": null,
+    "labels": ["spec-002"],
+    "issue": 19,
+    "pr": null
+  },
+  "expected": { "recorded": false }
+}
