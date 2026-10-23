@@ -4,7 +4,7 @@
 // Erasable syntax and relative `.ts` imports only, like the ledger modules it uses.
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { readBudgetUsd, specFrontmatter } from "./ledger/spend-line.ts";
+import { readBudgetUsdFrom, specFrontmatter } from "./ledger/spec-files.ts";
 
 // Read only at build time, from the `site/` directory the build runs in.
 export const SPECS_DIR = path.join(process.cwd(), "..", "specs");
@@ -30,7 +30,7 @@ export async function listSpecs(dir = SPECS_DIR): Promise<SpecInfo[]> {
     if (seen.has(number)) throw new Error(`${file}: more than one spec file is numbered ${number}`);
     seen.add(number);
 
-    const raw = await readFile(/* turbopackIgnore: true */ path.join(dir, file), "utf8");
+    const raw = await readFile(path.join(/* turbopackIgnore: true */ dir, file), "utf8");
     let title: unknown;
     try {
       title = specFrontmatter(raw).title;
@@ -39,7 +39,7 @@ export async function listSpecs(dir = SPECS_DIR): Promise<SpecInfo[]> {
     }
     if (typeof title !== "string" || title.trim() === "") throw new Error(`${file}: missing frontmatter field "title"`);
 
-    specs.push({ number, title: title.trim(), budgetUsd: await readBudgetUsd(number, dir) });
+    specs.push({ number, title: title.trim(), budgetUsd: await readBudgetUsdFrom(number, dir) });
   }
   return specs;
 }

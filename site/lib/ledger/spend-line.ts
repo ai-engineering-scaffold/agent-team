@@ -2,11 +2,9 @@
 // the ledger before Claude runs, and the line goes into the review prompt, so it carries only
 // numbers and the spec number, never free text from a record (design 002, section 5).
 // Erasable syntax and relative `.ts` imports only, so Node's type stripping can run it too.
-import { readdir, readFile } from "node:fs/promises";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
-import matter from "gray-matter";
 import { summarize, toMicros, type SpecSummary } from "./load.ts";
+import { readBudgetUsdFrom, specFrontmatter } from "./spec-files.ts";
 import type { LedgerRecord } from "./record.ts";
 
 // The `specs/` folder of the checkout this module was loaded from, whatever the working
@@ -79,32 +77,11 @@ export function formatSpendLine(summary: SpecSummary, budgetUsd: number | null):
   return `Spend on spec ${spec} so far: ${spent} of ${dollars(budgetMicros)} budget (${status}) across ${tail}`;
 }
 
-// gray-matter runs `---js` front matter through eval. Spec files are never code, so this
-// engine throws instead and the reader returns null.
-const noCode = {
-  parse: (): never => {
-    throw new Error("code front matter is not allowed");
-  },
-};
+export { specFrontmatter };
 
-// The front matter of a spec file, parsed as YAML only. Throws on `---js` front matter.
-export function specFrontmatter(raw: string): Record<string, unknown> {
-  return matter(raw, { engines: { js: noCode, javascript: noCode } }).data;
-}
-
-// `budget_usd` from `specs/NNN-*.md`. Null when the spec number is not three digits, there is
-// not exactly one matching file, or the field is missing or not a positive number.
+// `budget_usd` from `specs/NNN-*.md`, by default in this checkout's `specs/`. Null when the
+// spec number is not three digits, there is not exactly one matching file, or the field is
+// missing or not a positive number (see spec-files.ts).
 export async function readBudgetUsd(spec: string, specsDir = SPECS_DIR): Promise<number | null> {
-  if (!SPEC_PATTERN.test(spec)) return null;
-  try {
-    const files = (await readdir(/* turbopackIgnore: true */ specsDir)).filter(
-      (name) => name.startsWith(`${spec}-`) && name.endsWith(".md"),
-    );
-    if (files.length !== 1) return null;
-    const raw = await readFile(/* turbopackIgnore: true */ path.join(specsDir, files[0]), "utf8");
-    const budget: unknown = specFrontmatter(raw).budget_usd;
-    return typeof budget === "number" && Number.isFinite(budget) && budget > 0 ? budget : null;
-  } catch {
-    return null;
-  }
+  return readBudgetUsdFrom(spec, specsDir);
 }
