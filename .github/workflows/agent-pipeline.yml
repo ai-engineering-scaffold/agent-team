@@ -118,13 +118,15 @@ jobs:
             slice-issues skill. Run it in the foreground and wait for its result.
             Every issue gets the label spec-${{ needs.next.outputs.spec }}; create the label first if it does not exist.
             Do not use the agent:build label: builds start automatically.
-            Do not write files. Follow the spec's Design input section. If the spec still needs a real technical
+            Write no files in the repository. Write each issue body to a file under /tmp/issue-bodies/ and create the
+            issue with --body-file, then check it with gh issue view and fix any missing section with gh issue edit
+            (slice-issues skill). Follow the spec's Design input section. If the spec still needs a real technical
             choice, make it and put the options, the choice and why in a Design section of the first issue, whose
             PR adds the design doc and a proposed ADR. Never use the design-needed label: there is no design gate
             (ADR 0012).
           claude_args: |
             --max-turns 40
-            --allowedTools "Agent,Read,Grep,Glob,Bash(gh issue create:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh label list:*),Bash(gh label create:*)"
+            --allowedTools "Agent,Read,Grep,Glob,Write(//tmp/issue-bodies/**),Edit(//tmp/issue-bodies/**),Bash(gh issue create:*),Bash(gh issue edit:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh label list:*),Bash(gh label create:*)"
       # Spec 002: the agent's result for record-plan. Only these three words or numbers leave the job.
       - name: Report the agent's result
         id: result
