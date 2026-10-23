@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { listRoles } from "@/lib/roles";
 
 export const metadata: Metadata = { title: "How we work" };
@@ -20,6 +21,48 @@ async function RoleList() {
   );
 }
 
+const ADR_0002 = "/decisions/0002-six-agent-roles-and-five-gates";
+const ADR_0006 = "/decisions/0006-agents-may-merge-low-risk-changes";
+
+// Gates change only through an ADR, so they are stated here (ADR 0002).
+const GATES = [
+  { name: "Spec", approver: "Graham approves the spec.", extra: false },
+  {
+    name: "Design",
+    approver: "Graham approves the design, only when the tech lead flags design-needed.",
+    extra: false,
+  },
+  {
+    name: "CI",
+    approver: "Lint, types, unit tests, build and Playwright pass as required checks.",
+    extra: false,
+  },
+  { name: "Review", approver: "The reviewer agent finds no blocking issues.", extra: false },
+  { name: "Merge", approver: "Graham merges, except for low-risk changes.", extra: true },
+];
+
+function GateList() {
+  return (
+    <ol aria-label="Gates">
+      {GATES.map((g) => (
+        <li key={g.name}>
+          <h3>{g.name}</h3>
+          <p>{g.approver}</p>
+          <p>
+            <Link href={ADR_0002}>ADR 0002</Link>
+            {g.extra && (
+              <>
+                {" "}
+                <Link href={ADR_0006}>ADR 0006</Link>
+              </>
+            )}
+          </p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export default function HowWeWorkPage() {
   return (
     <>
@@ -28,6 +71,11 @@ export default function HowWeWorkPage() {
         <h2 id="roles-heading">Roles</h2>
         <p>Each role is an agent defined in the repo. This list is read from those definitions.</p>
         <RoleList />
+      </section>
+      <section aria-labelledby="gates-heading">
+        <h2 id="gates-heading">Gates</h2>
+        <p>Work passes five gates, in order, before it ships.</p>
+        <GateList />
       </section>
     </>
   );
