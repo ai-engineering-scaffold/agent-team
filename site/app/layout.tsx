@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { bodyFont, headingFont } from "./fonts";
+import MainNav from "./main-nav";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,14 +17,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${headingFont.variable} ${bodyFont.variable}`}>
       <body>
         <header className="site-header">
-          <Link href="/" className="site-name">
-            AI Engineering Scaffold
-          </Link>
-          <nav aria-label="Main">
-            <Link href="/how-we-work">How we work</Link>
-            <Link href="/decisions">Decisions</Link>
-            <Link href="/metrics">Metrics</Link>
-          </nav>
+          <div className="site-header-inner">
+            <Link href="/" className="site-name">
+              AI Engineering Scaffold
+            </Link>
+            <MainNav />
+          </div>
         </header>
         <main>{children}</main>
       </body>
