@@ -87,6 +87,11 @@ const noCode = {
   },
 };
 
+// The front matter of a spec file, parsed as YAML only. Throws on `---js` front matter.
+export function specFrontmatter(raw: string): Record<string, unknown> {
+  return matter(raw, { engines: { js: noCode, javascript: noCode } }).data;
+}
+
 // `budget_usd` from `specs/NNN-*.md`. Null when the spec number is not three digits, there is
 // not exactly one matching file, or the field is missing or not a positive number.
 export async function readBudgetUsd(spec: string, specsDir = SPECS_DIR): Promise<number | null> {
@@ -97,7 +102,7 @@ export async function readBudgetUsd(spec: string, specsDir = SPECS_DIR): Promise
     );
     if (files.length !== 1) return null;
     const raw = await readFile(/* turbopackIgnore: true */ path.join(specsDir, files[0]), "utf8");
-    const budget: unknown = matter(raw, { engines: { js: noCode, javascript: noCode } }).data.budget_usd;
+    const budget: unknown = specFrontmatter(raw).budget_usd;
     return typeof budget === "number" && Number.isFinite(budget) && budget > 0 ? budget : null;
   } catch {
     return null;
