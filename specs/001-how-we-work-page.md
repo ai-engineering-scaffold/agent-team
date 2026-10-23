@@ -18,10 +18,10 @@ A visitor to the site can read individual decisions, but nothing shows how the o
 ## Acceptance criteria
 
 - **AC1.** Given the built site, when a visitor opens `/how-we-work`, then the page shows a level-one heading "How we work".
-- **AC2.** Given the agent definitions in `plugin/agents/`, when the page is built, then it lists one entry per agent file, showing the role's name, its description and the model it runs on, all read from that file's frontmatter.
-- **AC3.** Given an agent file is added to or removed from `plugin/agents/`, when the site is rebuilt, then the list of roles changes to match without any other code change.
+- **AC2.** Given the agent definitions in `plugin/agents/`, when the page is built, then it lists one entry per agent file, showing the role's name (the frontmatter `name` in sentence case, for example "Code reviewer"), its description and the model it runs on, all read from that file's frontmatter.
+- **AC3.** Given an agent file is added to or removed from `plugin/agents/`, when the site is rebuilt, then the list of roles changes to match without any other code change. Checked by a unit test that runs the role loader against a fixture folder, and by the AC2 Playwright test comparing the number of entries with the number of files in `plugin/agents/`.
 - **AC4.** Given the page, when a visitor reads the gates section, then it lists the five gates in order (Spec, Design, CI, Review, Merge), each with who or what must approve it.
-- **AC5.** Given the gates section, when a visitor follows the link on a gate, then they reach the decision that set it: ADR 0002 for all gates, and ADR 0006 from the Merge gate.
+- **AC5.** Given the gates section, when a visitor follows a gate's links, then each gate links to ADR 0002, and the Merge gate also links to ADR 0006.
 - **AC6.** Given any page on the site, when a visitor uses the main navigation, then a "How we work" link takes them to `/how-we-work`.
 - **AC7.** Given a 375 px wide viewport, when the page loads, then all roles and gates are readable without horizontal scrolling.
 
@@ -39,3 +39,4 @@ The page ships through every gate of the pipeline it describes (spec, issues, en
 
 - Should the gate list also come from a file in the repo (for example a `docs/` page), or is it fine for the page to state the five gates in code since they change only by ADR?
 - Should the page show which roles are deferred (security, release, eval steward, per ADR 0002)?
+- For the tech lead: the build reads `plugin/agents/` from outside `site/`. The decision log already does the same with `decisions/`, so this depends on Vercel including files outside the root directory, which is its default. Confirm this once Vercel deploys succeed.
