@@ -32,6 +32,15 @@ Two or three sentences.
 
 - Labels: `spec-NNN`. Never `design-needed`: there is no design gate (ADR 0012). A real technical choice goes in a `## Design` section of the first issue (options, choice, why), and that issue's PR adds the design doc and a proposed ADR. Builds start automatically after each merge to main, in issue-number order (ADR 0008), so create issues in the order they should be built.
 
+## Creating and checking an issue
+
+Issue bodies are long Markdown, so never pass one inline with `--body`, a heredoc or `$(...)`. The pipeline's planner may be refused those commands, which is the likely reason spec 004's first issue lost its Design section.
+
+1. Write the body to a file under `/tmp/issue-bodies/` with the Write tool, for example `/tmp/issue-bodies/1.md`.
+2. Run `gh issue create --title "..." --label spec-NNN --body-file /tmp/issue-bodies/1.md`.
+3. Run `gh issue view <number>` and check that every section you wrote is there, including `## Design` on the first issue. If one is missing, fix it with `gh issue edit <number> --body-file /tmp/issue-bodies/1.md` and check again.
+4. If a later issue refers to a decision ("the tokens from #N", "ADR NNNN"), check that the decision is written in the issue it points to.
+
 ## Order
 
 Create issues in build order and say the order in the first issue. Put risky or uncertain work first so surprises land early.
