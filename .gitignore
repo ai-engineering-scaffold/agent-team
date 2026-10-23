@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+.env*
+# per-session token counts written by the cost hook
+.claude/cost-ledger.local.jsonl
+.claude/settings.local.json
+.agent-review/
