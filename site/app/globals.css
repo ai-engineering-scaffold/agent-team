@@ -1,9 +1,19 @@
 /*
- * Structural styles only. The visual design waits for Graham's theme
- * (see decisions/0005); keep this file small so the theme can replace it.
+ * The site theme (spec 004, decisions/0014). Use only the colour tokens
+ * below: they must match TOKENS in lib/theme.ts, which a unit test checks.
+ * A new colour or font needs a new ADR. No translucent colours or
+ * color-mix(): a blended colour needs its own token.
  */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
+  --colour-cream: #E8E1CF;
+  --colour-white: #FFFFFF;
+  --colour-ink: #313824;
+  --colour-dark-olive: #4F5B3A;
+  --colour-terracotta-dark: #7E5039;
+  --colour-terracotta: #A86B4C;
+  --colour-olive: #7A8B5A;
+  --colour-sage: #B9B08C;
   --measure: 42rem;
 }
 
@@ -11,10 +21,50 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  background: var(--colour-cream);
+  color: var(--colour-ink);
+}
+
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
   line-height: 1.6;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--colour-dark-olive);
+}
+
+a {
+  color: var(--colour-terracotta-dark);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.15em;
+}
+
+a:visited {
+  color: var(--colour-dark-olive);
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--colour-dark-olive);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--colour-sage);
+  color: var(--colour-ink);
 }
 
 .site-header,
@@ -44,7 +94,7 @@ th,
 td {
   text-align: left;
   padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
+  border-bottom: 1px solid var(--colour-sage);
 }
 
 pre,
