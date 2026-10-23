@@ -80,22 +80,91 @@ a:hover {
   color: var(--colour-ink);
 }
 
-.site-header,
+.site-header-inner,
 main {
   max-width: var(--measure);
   margin: 0 auto;
   padding: 1rem;
 }
 
+/*
+ * Header and main nav (spec 004, AC4 and AC5; ADR 0014). A white band with a
+ * decorative olive rule. The tabs are always visible: below 40rem the site
+ * name takes its own row and the tabs sit in one row beneath it. The current
+ * tab is a filled pill at weight 600, so it differs by shape and weight, not
+ * only colour. No transitions.
+ */
 .site-header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
+  background: var(--colour-white);
+  border-bottom: 3px solid var(--colour-olive);
 }
 
-.site-name {
+.site-header-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  flex-wrap: wrap;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.site-name,
+.site-name:visited {
+  font-size: 1.125rem;
   font-weight: 600;
+  color: var(--colour-dark-olive);
+  text-decoration: none;
+}
+
+.site-name:hover {
+  text-decoration: underline;
+}
+
+.main-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.main-nav a,
+.main-nav a:visited {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  border-radius: 999px;
+  background: var(--colour-white);
+  color: var(--colour-ink);
+  font-weight: 400;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.main-nav a:hover {
+  background: var(--colour-cream);
+  color: var(--colour-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+}
+
+/* The current page ("page") or section ("true"). Hover keeps the fill. */
+.main-nav a[aria-current],
+.main-nav a[aria-current]:visited,
+.main-nav a[aria-current]:hover {
+  background: var(--colour-dark-olive);
+  color: var(--colour-white);
+  font-weight: 600;
+}
+
+@media (max-width: 40rem) {
+  .site-header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 /*
