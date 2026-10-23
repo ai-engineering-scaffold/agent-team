@@ -12,11 +12,24 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: agent-pipeline
+  group: agent-pipeline-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
+  # claude-code-action doesn't run on push events, so a push only re-dispatches this workflow,
+  # and the agents run in that workflow_dispatch run.
+  relay:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run agent-pipeline.yml --repo "${{ github.repository }}" --ref main
+
   next:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read
