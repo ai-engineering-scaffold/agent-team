@@ -1,0 +1,29 @@
+{
+  "description": "build that opened no PR: spec comes from the issue's spec-NNN label",
+  "input": {
+    "workflow": "build",
+    "runStartedAt": "2026-10-23T11:00:00Z",
+    "agentOutput": { "subtype": "success", "cost_usd": "2.105", "turns": "41" },
+    "job": { "result": "success", "startedAt": "2026-10-23T11:00:03Z", "completedAt": "2026-10-23T11:25:00Z", "timeoutMinutes": 60 },
+    "agentStep": { "conclusion": "success", "startedAt": "2026-10-23T11:01:00Z", "completedAt": "2026-10-23T11:24:30Z" },
+    "planSpec": null,
+    "branch": null,
+    "labels": ["design-needed", "spec-002"],
+    "issue": 19,
+    "pr": null
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T11:00:00Z",
+      "workflow": "build",
+      "spec": "002",
+      "issue": 19,
+      "pr": null,
+      "cost_usd": 2.105,
+      "turns": 41,
+      "duration_s": 1410,
+      "outcome": "success"
+    }
+  }
+}

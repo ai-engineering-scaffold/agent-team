@@ -1,0 +1,28 @@
+{
+  "description": "fix run that finished cleanly",
+  "input": {
+    "workflow": "fix",
+    "runStartedAt": "2026-10-23T15:00:00Z",
+    "agentOutput": { "subtype": "success", "cost_usd": "1.25", "turns": "22" },
+    "job": { "result": "success", "startedAt": "2026-10-23T15:00:03Z", "completedAt": "2026-10-23T15:12:00Z", "timeoutMinutes": 60 },
+    "agentStep": { "conclusion": "success", "startedAt": "2026-10-23T15:00:40Z", "completedAt": "2026-10-23T15:11:40Z" },
+    "planSpec": null,
+    "branch": "spec-002/issue-19-ledger-record",
+    "labels": [],
+    "pr": 30
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T15:00:00Z",
+      "workflow": "fix",
+      "spec": "002",
+      "issue": 19,
+      "pr": 30,
+      "cost_usd": 1.25,
+      "turns": 22,
+      "duration_s": 660,
+      "outcome": "success"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "description": "review job killed at its 20-minute limit while the agent step ran: no result, duration until the job stopped",
+  "input": {
+    "workflow": "review",
+    "runStartedAt": "2026-10-23T18:00:00Z",
+    "agentOutput": null,
+    "job": { "result": "failure", "startedAt": "2026-10-23T18:00:05Z", "completedAt": "2026-10-23T18:20:10Z", "timeoutMinutes": 20 },
+    "agentStep": { "conclusion": "cancelled", "startedAt": "2026-10-23T18:00:30Z", "completedAt": null },
+    "planSpec": null,
+    "branch": "spec-002/issue-20-ledger-loader",
+    "labels": [],
+    "pr": 32
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T18:00:00Z",
+      "workflow": "review",
+      "spec": "002",
+      "issue": 20,
+      "pr": 32,
+      "cost_usd": null,
+      "turns": null,
+      "duration_s": 1180,
+      "outcome": "timeout"
+    }
+  }
+}

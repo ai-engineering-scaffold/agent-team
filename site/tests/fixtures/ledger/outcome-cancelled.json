@@ -1,0 +1,28 @@
+{
+  "description": "review cancelled by a new push three minutes in: no result, duration until the job stopped",
+  "input": {
+    "workflow": "review",
+    "runStartedAt": "2026-10-23T19:00:00Z",
+    "agentOutput": { "subtype": "", "cost_usd": "", "turns": "" },
+    "job": { "result": "cancelled", "startedAt": "2026-10-23T19:00:04Z", "completedAt": "2026-10-23T19:03:15Z", "timeoutMinutes": 20 },
+    "agentStep": { "conclusion": "cancelled", "startedAt": "2026-10-23T19:00:25Z", "completedAt": null },
+    "planSpec": null,
+    "branch": "spec-002/issue-20-ledger-loader",
+    "labels": [],
+    "pr": 32
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T19:00:00Z",
+      "workflow": "review",
+      "spec": "002",
+      "issue": 20,
+      "pr": 32,
+      "cost_usd": null,
+      "turns": null,
+      "duration_s": 170,
+      "outcome": "cancelled"
+    }
+  }
+}

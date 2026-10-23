@@ -1,0 +1,28 @@
+{
+  "description": "review of a chore PR: no spec source, so spec is none and issue is null",
+  "input": {
+    "workflow": "review",
+    "runStartedAt": "2026-10-23T12:00:00Z",
+    "agentOutput": { "subtype": "success", "cost_usd": "0.17", "turns": "5" },
+    "job": { "result": "success", "startedAt": "2026-10-23T12:00:02Z", "completedAt": "2026-10-23T12:02:00Z", "timeoutMinutes": 20 },
+    "agentStep": { "conclusion": "success", "startedAt": "2026-10-23T12:00:15Z", "completedAt": "2026-10-23T12:01:45Z" },
+    "planSpec": null,
+    "branch": "chore/readme-typo",
+    "labels": ["documentation"],
+    "pr": 31
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T12:00:00Z",
+      "workflow": "review",
+      "spec": "none",
+      "issue": null,
+      "pr": 31,
+      "cost_usd": 0.17,
+      "turns": 5,
+      "duration_s": 90,
+      "outcome": "success"
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "description": "review of a build PR: spec and issue come from the spec-NNN/issue-N- branch",
+  "input": {
+    "workflow": "review",
+    "runStartedAt": "2026-10-23T10:00:00Z",
+    "agentOutput": { "subtype": "success", "cost_usd": "0.42", "turns": "9" },
+    "job": { "result": "success", "startedAt": "2026-10-23T10:00:04Z", "completedAt": "2026-10-23T10:04:10Z", "timeoutMinutes": 20 },
+    "agentStep": { "conclusion": "success", "startedAt": "2026-10-23T10:00:20Z", "completedAt": "2026-10-23T10:04:00Z" },
+    "planSpec": null,
+    "branch": "spec-002/issue-19-ledger-record",
+    "labels": ["spec-001"],
+    "pr": 30
+  },
+  "expected": {
+    "recorded": true,
+    "record": {
+      "date": "2026-10-23T10:00:00Z",
+      "workflow": "review",
+      "spec": "002",
+      "issue": 19,
+      "pr": 30,
+      "cost_usd": 0.42,
+      "turns": 9,
+      "duration_s": 220,
+      "outcome": "success"
+    }
+  }
+}
