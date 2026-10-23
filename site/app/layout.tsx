@@ -19,6 +19,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             AI Engineering Scaffold
           </Link>
           <nav aria-label="Main">
+            <Link href="/how-we-work">How we work</Link>
             <Link href="/decisions">Decisions</Link>
           </nav>
         </header>
