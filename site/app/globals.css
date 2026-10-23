@@ -27,9 +27,14 @@ body {
   color: var(--colour-ink);
 }
 
+/*
+ * Fonts: --font-heading (Source Serif 4) and --font-body (Inter) come from
+ * next/font in app/fonts.ts, set on <html> by the root layout. Code stays on
+ * the system monospace stack.
+ */
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-body);
   line-height: 1.6;
 }
 
@@ -39,7 +44,15 @@ h3,
 h4,
 h5,
 h6 {
+  font-family: var(--font-heading);
   color: var(--colour-dark-olive);
+}
+
+code,
+kbd,
+pre,
+samp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 a {
