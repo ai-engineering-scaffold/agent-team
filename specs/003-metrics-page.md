@@ -1,7 +1,7 @@
 ---
 spec: 003
 title: Metrics page
-status: approved # approved (on main once merged) | shipped | dropped
+status: approved
 budget_usd: 15
 owner: Graham
 ---
