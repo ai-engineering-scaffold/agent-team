@@ -25,6 +25,7 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+      actions: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -59,6 +60,17 @@ jobs:
           claude_args: |
             --max-turns 40
             --allowedTools "Agent,Read,Grep,Glob,Edit(.agent-review/**),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+      - name: Start the engineer on the requested changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          verdict="$(tr -d '[:space:]' < .agent-review/verdict 2>/dev/null || true)"
+          # Only agent-built PRs are fixed automatically; agent-fix checks this again and caps the rounds.
+          if [ "$verdict" = "CHANGES_REQUESTED" ] && [[ "$REF" =~ ^spec-[0-9]{3}/issue-[0-9]+- ]]; then
+            gh workflow run agent-fix.yml --repo "${{ github.repository }}" --ref main -f pr=${{ github.event.pull_request.number }}
+            echo "Started agent-fix for this PR."
+          fi
       - name: Enforce the verdict
         run: |
           verdict="$(tr -d '[:space:]' < .agent-review/verdict 2>/dev/null || true)"

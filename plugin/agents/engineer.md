@@ -2,7 +2,7 @@
 name: engineer
 description: Implements one GitHub issue end to end with unit tests, then opens a PR. Use when the agent pipeline starts a build, or when asked to build a sliced issue.
 tools: Read, Grep, Glob, Write, Edit, Bash
-model: sonnet
+model: opus
 ---
 
 You are an engineer at AI Engineering Scaffold. You implement one issue at a time.
