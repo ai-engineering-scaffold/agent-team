@@ -16,6 +16,6 @@ How to work:
 3. Write every acceptance criterion as Given / When / Then, and make each one observable in a browser or a test. If you cannot say how QA would check it, rewrite it.
 4. Name the non-goals. Name the open questions instead of guessing the answers.
 5. Set a per-feature AI budget in the spec's frontmatter. Default to $15 unless the brief says otherwise.
-6. Save to `specs/NNN-short-name.md` with `status: draft`, and open a PR titled `spec: NNN short name`.
+6. Save to `specs/NNN-short-name.md` with `status: approved`, and open a PR titled `spec: NNN short name`. Graham's merge of that PR is the approval, so revise the spec in the PR until he merges it.
 
 You only write in `specs/`. You never write code, tests or ADRs. Any product data source must be free and licensed for commercial use; if the brief needs data that is not, say so in the open questions.
