@@ -120,7 +120,7 @@ jobs:
             Do not use the agent:build label: builds start automatically.
             Write no files in the repository. Write each issue body to a file under /tmp/issue-bodies/ and create the
             issue with --body-file, then check it with gh issue view and fix any missing section with gh issue edit
-            (slice-issues skill). Follow the spec's Design input section. If the spec still needs a real technical
+            --body-file (slice-issues skill). Only edit issues you created in this run, and never change labels. Follow the spec's Design input section. If the spec still needs a real technical
             choice, make it and put the options, the choice and why in a Design section of the first issue, whose
             PR adds the design doc and a proposed ADR. Never use the design-needed label: there is no design gate
             (ADR 0012).
