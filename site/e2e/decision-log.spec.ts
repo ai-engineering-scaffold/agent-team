@@ -10,7 +10,7 @@ test("home page links to the latest decisions", async ({ page }) => {
 test("decision log lists ADRs newest first and opens one", async ({ page }) => {
   await page.goto("/decisions");
   const rows = page.getByRole("row");
-  await expect(rows.nth(1)).toContainText("0007");
+  await expect(rows.nth(1)).toContainText("0008");
   await page.getByRole("link", { name: "Run an AI-native engineering org, in public" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Run an AI-native engineering org, in public" })).toBeVisible();
   await expect(page.getByText("Decided by")).toBeVisible();
