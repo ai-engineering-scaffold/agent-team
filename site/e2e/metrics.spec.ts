@@ -76,10 +76,65 @@ test("AC3: spec 002 says Over budget and spec 001 says Not recorded", async ({ p
   await expect(table.getByRole("row", { name: /^003 / })).not.toContainText("Over budget");
 });
 
-test("AC7: at 375 px the page does not scroll horizontally with the Spend by spec table", async ({ page }) => {
+// Runs by week (issue 36). The fixture ledger's weeks are listed in e2e/fixtures/ledger/README.txt.
+const weeksTable = (page: Page) => page.getByRole("table", { name: "Runs by week" });
+
+// Week starting, runs, spend, runs not successful.
+const fixtureWeeks: [string, string, string, string][] = [
+  ["2026-10-19", "2", "$1.80", "0"],
+  ["2026-10-12", "2", "$6.35", "1"],
+  ["2026-10-05", "0", "$0.00", "0"],
+  ["2026-09-28", "2", "$1.28", "1"],
+  ["2026-09-21", "1", "$0.80", "0"],
+  ["2026-09-14", "2", "$7.77", "0"],
+  ["2026-09-07", "2", "$1.10", "1"],
+  ["2026-08-31", "1", "$6.40", "0"],
+];
+
+test("AC4: Runs by week lists 8 weeks, newest first, starting 2026-10-19", async ({ page }) => {
+  await page.goto("/metrics");
+  await expect(page.getByRole("heading", { level: 2, name: "Runs by week" })).toBeVisible();
+  const table = weeksTable(page);
+  await expect(table).toBeVisible();
+  const weeks = await table.getByRole("rowheader").allTextContents();
+  expect(weeks).toHaveLength(8);
+  expect(weeks[0]).toBe("2026-10-19");
+  expect(weeks).toEqual(fixtureWeeks.map(([week]) => week));
+  expect(weeks, "newest first").toEqual([...weeks].sort().reverse());
+  // 2026-08-24 holds run 5001 but is older than 8 weeks.
+  expect(weeks).not.toContain("2026-08-24");
+});
+
+test("AC4: every Runs by week row shows its runs, spend and not-successful counts", async ({ page }) => {
+  await page.goto("/metrics");
+  const table = weeksTable(page);
+  for (const [week, runs, spend, notSuccess] of fixtureWeeks) {
+    const row = table.getByRole("row", { name: new RegExp(`^${week} `) });
+    await expect(row.getByRole("rowheader")).toHaveText(week);
+    await expect(row.getByRole("cell"), `row ${week}`).toHaveText([runs, spend, notSuccess]);
+  }
+});
+
+test("AC4: the empty week 2026-10-05 shows zeros", async ({ page }) => {
+  await page.goto("/metrics");
+  const row = weeksTable(page).getByRole("row", { name: /^2026-10-05 / });
+  await expect(row).toBeVisible();
+  await expect(row.getByRole("cell")).toHaveText(["0", "$0.00", "0"]);
+});
+
+test("AC4: a week with a run that was not a success counts it", async ({ page }) => {
+  await page.goto("/metrics");
+  const table = weeksTable(page);
+  // 2026-10-12 has 5011 (max_turns) among 2 runs; 2026-10-19 has none.
+  await expect(table.getByRole("row", { name: /^2026-10-12 / }).getByRole("cell").nth(2)).toHaveText("1");
+  await expect(table.getByRole("row", { name: /^2026-10-19 / }).getByRole("cell").nth(2)).toHaveText("0");
+});
+
+test("AC7: at 375 px the page does not scroll horizontally with both tables", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto("/metrics");
   await expect(spendTable(page)).toBeVisible();
+  await expect(weeksTable(page)).toBeVisible();
   const { scrollWidth, innerWidth } = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     innerWidth: window.innerWidth,

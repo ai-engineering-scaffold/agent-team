@@ -10,10 +10,12 @@ import {
   formatBudget,
   formatSpend,
   formatUtc,
+  formatWeekSpend,
   metricsPageState,
   newestRun,
   NOT_RECORDED,
   OVER_BUDGET,
+  runsByWeekRows,
   spendBySpecRows,
   UNAVAILABLE_MESSAGE,
   WITHIN_BUDGET,
@@ -195,6 +197,97 @@ describe("AC3: over budget and not recorded", () => {
     const rows = spendBySpecRows([summary("004", 99_000_000, 1)], [{ number: "004", title: "No budget", budgetUsd: null }]);
     expect(rows[0].overBudget).toBe(false);
     expect(budgetStatus(rows[0])).toBe("");
+  });
+});
+
+describe("AC4: the Runs by week rows", () => {
+  const weeks = (records: LedgerRecord[]) => runsByWeekRows(records).map((r) => r.weekStart);
+
+  it("AC4: lists 8 weeks starting on Mondays (UTC), newest first, ending with the newest run's week", () => {
+    expect(weeks([run("2026-10-21T14:05:00Z")])).toEqual([
+      "2026-10-19",
+      "2026-10-12",
+      "2026-10-05",
+      "2026-09-28",
+      "2026-09-21",
+      "2026-09-14",
+      "2026-09-07",
+      "2026-08-31",
+    ]);
+    expect(runsByWeekRows([])).toEqual([]);
+  });
+
+  it("AC4: a run on Sunday 23:59:59 UTC and one on Monday 00:00 UTC fall in different weeks", () => {
+    const rows = runsByWeekRows([run("2026-10-18T23:59:59Z"), run("2026-10-19T00:00:00Z")]);
+    expect(rows[0]).toMatchObject({ weekStart: "2026-10-19", runs: 1 });
+    expect(rows[1]).toMatchObject({ weekStart: "2026-10-12", runs: 1 });
+    // A time zone offset is read as the UTC instant it names: this is Sunday 23:00 UTC.
+    expect(weeks([run("2026-10-19T01:00:00+02:00")])[0]).toBe("2026-10-12");
+  });
+
+  it("AC4: weeks cross year boundaries", () => {
+    // 2026-01-01 is a Thursday, so its week starts on Monday 2025-12-29.
+    const rows = runsByWeekRows([run("2026-01-01T12:00:00Z"), run("2025-12-28T12:00:00Z")]);
+    expect(rows.slice(0, 2)).toMatchObject([
+      { weekStart: "2025-12-29", runs: 1 },
+      { weekStart: "2025-12-22", runs: 1 },
+    ]);
+    expect(rows.at(-1)!.weekStart).toBe("2025-11-10");
+    // Sunday 2027-01-03 belongs to the week that starts on Monday 2026-12-28.
+    expect(weeks([run("2027-01-03T23:00:00Z")])[0]).toBe("2026-12-28");
+  });
+
+  it("AC4: a week with no runs shows zeros", () => {
+    const rows = runsByWeekRows([run("2026-10-21T14:05:00Z"), run("2026-10-07T09:00:00Z")]);
+    expect(rows[1]).toEqual({ weekStart: "2026-10-12", runs: 0, totalCostMicros: 0, notSuccess: 0 });
+    expect(formatWeekSpend(rows[1])).toBe("$0.00");
+    expect(rows[2]).toMatchObject({ weekStart: "2026-10-05", runs: 1 });
+  });
+
+  it("AC4: a null-cost run counts as a run with $0 spend, and outcomes other than success are counted", () => {
+    const rows = runsByWeekRows([
+      run("2026-10-20T09:00:00Z", 1.1),
+      run("2026-10-21T09:00:00Z", 0.2),
+      run("2026-10-22T09:00:00Z", null),
+      { ...run("2026-10-22T10:00:00Z", 0.05), outcome: "max_turns" },
+    ]);
+    expect(rows[0]).toEqual({ weekStart: "2026-10-19", runs: 4, totalCostMicros: 1_350_000, notSuccess: 2 });
+    expect(formatWeekSpend(rows[0])).toBe("$1.35");
+    expect(runsByWeekRows([run("2026-10-22T09:00:00Z", null)])[0]).toMatchObject({ runs: 1, totalCostMicros: 0 });
+  });
+
+  it("AC4: runs older than the 8 weeks are left out", () => {
+    // 2026-08-30 is the Sunday before the oldest week shown (2026-08-31).
+    const rows = runsByWeekRows([
+      run("2026-10-21T14:05:00Z"),
+      run("2026-08-31T00:00:00Z"),
+      run("2026-08-30T23:59:59Z"),
+    ]);
+    expect(rows).toHaveLength(8);
+    expect(rows.at(-1)).toMatchObject({ weekStart: "2026-08-31", runs: 1 });
+    expect(rows.reduce((n, r) => n + r.runs, 0)).toBe(2);
+  });
+
+  it("AC4: the table depends on neither record order nor the build date", () => {
+    const records = [run("2026-09-02T09:00:00Z"), run("2026-10-21T14:05:00Z"), run("2026-10-14T09:00:00Z", 2)];
+    const expected = runsByWeekRows(records);
+    expect(runsByWeekRows([...records].reverse())).toEqual(expected);
+    expect(runsByWeekRows([records[2], records[0], records[1]])).toEqual(expected);
+    expect(expected[0].weekStart).toBe("2026-10-19");
+  });
+
+  it("AC4: the e2e fixture gives the week table its README promises", async () => {
+    const { records } = await loadLedger(e2eFixture);
+    expect(runsByWeekRows(records).map((r) => [r.weekStart, r.runs, formatWeekSpend(r), r.notSuccess])).toEqual([
+      ["2026-10-19", 2, "$1.80", 0],
+      ["2026-10-12", 2, "$6.35", 1],
+      ["2026-10-05", 0, "$0.00", 0],
+      ["2026-09-28", 2, "$1.28", 1],
+      ["2026-09-21", 1, "$0.80", 0],
+      ["2026-09-14", 2, "$7.77", 0],
+      ["2026-09-07", 2, "$1.10", 1],
+      ["2026-08-31", 1, "$6.40", 0],
+    ]);
   });
 });
 
