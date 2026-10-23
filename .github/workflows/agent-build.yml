@@ -1,15 +1,26 @@
-# Starts the engineer when Graham labels an issue agent:build. The engineer builds, QA adds
-# Playwright tests for the spec's criteria, and the result opens as a PR that goes through every gate.
+# Builds one issue: the engineer implements it, QA adds Playwright tests for the spec's criteria, and the
+# result opens as a PR that goes through every gate. agent-pipeline calls this after each merge to main;
+# Graham can also start it by hand for one issue. See decisions/0008.
 name: agent-build
 
 on:
-  issues:
-    types: [labeled]
+  workflow_call:
+    inputs:
+      issue:
+        type: number
+        required: true
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to build
+        type: number
+        required: true
 
 jobs:
   build:
-    # Only Graham can start a build; anyone can open an issue on a public repo.
-    if: github.event.label.name == 'agent:build' && github.event.sender.login == 'GSchill25'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -36,14 +47,28 @@ jobs:
           plugins: scaffold-org@ai-engineering-scaffold
           prompt: |
             REPO: ${{ github.repository }}
-            ISSUE: #${{ github.event.issue.number }}
+            ISSUE: #${{ inputs.issue }}
 
-            1. Use the scaffold-org:engineer subagent to implement this issue on a branch named after its spec
-               (spec-NNN/short-name), with unit tests, until `npm --prefix site run check` passes.
+            1. Use the scaffold-org:engineer subagent to implement this issue on a branch named
+               spec-NNN/issue-${{ inputs.issue }}-short-name, with unit tests, until `npm --prefix site run check` passes.
             2. Use the scaffold-org:qa-automation subagent to add Playwright tests for the acceptance criteria
                the issue covers, and run `npm --prefix site run build && npm --prefix site run test:e2e`.
-            3. Push the branch and open a PR with the repository's template that says "Closes #${{ github.event.issue.number }}".
+            3. Push the branch and open a PR with the repository's template that says "Closes #${{ inputs.issue }}".
             If the issue is unclear, comment on it with the question instead of guessing, and stop.
           claude_args: |
             --max-turns 80
             --allowedTools "Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*)"
+      - name: Mark the issue blocked if no PR was opened
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ inputs.issue }}
+        run: |
+          # Without this, agent-pipeline would retry the same issue on every merge.
+          if ! gh pr list --repo "$REPO" --state open --json headRefName \
+            --jq "any(.[]; .headRefName | test(\"/issue-$ISSUE-\"))" | grep -q true; then
+            gh label create blocked --repo "$REPO" --color B60205 --description "Needs Graham before the pipeline retries it" 2>/dev/null || true
+            gh issue edit "$ISSUE" --repo "$REPO" --add-label blocked
+            echo "::warning::No PR was opened for #$ISSUE, so it is labelled blocked. Remove the label to retry."
+          fi

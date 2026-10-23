@@ -1,0 +1,121 @@
+# Moves approved work forward on every merge to main, so no one has to start a build by hand.
+# After each merge it finds the next step: plan an approved spec that has no issues yet, or build the
+# lowest-numbered open issue of an approved spec. One build runs at a time. See decisions/0008.
+#
+# Pushes to main only come from merged PRs (the ruleset requires them), so every run follows a gate
+# Graham passed: a merged spec (gate 1), a merged design (gate 2), or a merged build.
+name: agent-pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: agent-pipeline
+  cancel-in-progress: false
+
+jobs:
+  next:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      action: ${{ steps.pick.outputs.action }}
+      spec: ${{ steps.pick.outputs.spec }}
+      issue: ${{ steps.pick.outputs.issue }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: specs
+      - name: Pick the next step
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          action=none; spec=""; issue=""
+          # A build PR's branch is spec-NNN/issue-N-short-name, so it names the issue it builds.
+          branches="$(gh pr list --repo "$REPO" --state all --limit 200 --json headRefName,state \
+            --jq '[.[] | select(.state != "CLOSED") | .headRefName]')"
+
+          for f in specs/[0-9][0-9][0-9]-*.md; do
+            [ -e "$f" ] || continue
+            grep -qE '^status: approved[[:space:]]*$' "$f" || continue
+            n="$(basename "$f" | cut -c1-3)"
+            label="spec-$n"
+
+            total="$(gh issue list --repo "$REPO" --label "$label" --state all --json number --jq length)"
+            if [ "$total" -eq 0 ]; then action=plan; spec="$n"; break; fi
+
+            first="$(gh issue list --repo "$REPO" --label "$label" --state open --limit 200 --json number,labels \
+              --jq 'sort_by(.number) | first // empty')"
+            [ -n "$first" ] || continue
+            num="$(jq -r .number <<<"$first")"
+            labels="$(jq -r '[.labels[].name] | join(",")' <<<"$first")"
+
+            if [[ ",$labels," == *",design-needed,"* ]]; then echo "#$num waits on a design approval (gate 2)."; continue; fi
+            if [[ ",$labels," == *",blocked,"* ]]; then echo "#$num is blocked and needs Graham."; continue; fi
+            if jq -e --arg n "$num" 'any(.[]; test("/issue-" + $n + "-"))' <<<"$branches" >/dev/null; then
+              echo "#$num already has an open or merged PR, so a build is in flight."
+              action=none; break
+            fi
+            action=build; spec="$n"; issue="$num"; break
+          done
+
+          echo "Next step: $action ${spec:+spec $spec} ${issue:+issue #$issue}"
+          { echo "action=$action"; echo "spec=$spec"; echo "issue=$issue"; } >> "$GITHUB_OUTPUT"
+
+  plan:
+    needs: next
+    if: needs.next.outputs.action == 'plan'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: anthropics/claude-code-action@v1
+        env:
+          # A backgrounded subagent outlives the run: Claude ends its turn and the job exits before the work lands.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: https://github.com/ai-engineering-scaffold/agent-team.git
+          plugins: scaffold-org@ai-engineering-scaffold
+          prompt: |
+            REPO: ${{ github.repository }}
+            SPEC: specs/${{ needs.next.outputs.spec }}-*.md
+
+            Use the scaffold-org:tech-lead subagent to slice this approved spec into GitHub issues with the
+            slice-issues skill. Run it in the foreground and wait for its result.
+            Every issue gets the label spec-${{ needs.next.outputs.spec }}; create the label first if it does not exist.
+            Do not use the agent:build label: builds start automatically.
+            If the spec needs a real technical choice, do not write files. Create the first issue with the
+            label design-needed, describing the choice and the options, so Graham can approve a design first.
+          claude_args: |
+            --max-turns 40
+            --allowedTools "Agent,Read,Grep,Glob,Bash(gh issue create:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh label list:*),Bash(gh label create:*)"
+      - name: Start the first build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run agent-pipeline.yml --repo "${{ github.repository }}" --ref main
+
+  build:
+    needs: next
+    if: needs.next.outputs.action == 'build'
+    uses: ./.github/workflows/agent-build.yml
+    with:
+      issue: ${{ fromJSON(needs.next.outputs.issue) }}
+    secrets: inherit
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write

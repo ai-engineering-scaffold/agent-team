@@ -30,7 +30,7 @@ Two or three sentences.
 - [ ] Unit tests cover the new logic
 ```
 
-- Labels: `spec-NNN`, plus `design-needed` if Graham must approve a design first. Add `agent:build` only when the issue is ready for the engineer agent to start.
+- Labels: `spec-NNN`, plus `design-needed` if Graham must approve a design first. Builds start automatically after each merge to main, in issue-number order (ADR 0008), so create issues in the order they should be built.
 
 ## Order
 
