@@ -5,7 +5,8 @@ import { expect, test } from "@playwright/test";
 // Tests run from site/, ADRs live one level up. The newest ADR is read from disk so a new ADR can't break this test.
 const DECISIONS_DIR = path.resolve(__dirname, "..", "..", "decisions");
 const newestAdr = readdirSync(DECISIONS_DIR)
-  .filter((f) => /^\d{4}-.+\.md$/.test(f) && !f.startsWith("0000-"))
+  // Same pattern as site/lib/decisions.ts, so the test and the site agree on which files are ADRs.
+  .filter((f) => /^\d{4}-[a-z0-9-]+\.md$/.test(f) && !f.startsWith("0000-"))
   .sort()
   .at(-1)
   ?.slice(0, 4);
