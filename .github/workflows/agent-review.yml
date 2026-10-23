@@ -37,6 +37,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: https://github.com/ai-engineering-scaffold/agent-team.git
           plugins: scaffold-org@ai-engineering-scaffold
+          # Build PRs are opened and updated by the Claude app's bot, so the review must accept that actor.
+          # The reviewer is read-only apart from its own comment and verdict file.
+          allowed_bots: claude
           # The reviewer has no secrets and only read-only gh commands, and its review is public anyway,
           # so showing its transcript costs nothing and makes a failed review diagnosable.
           show_full_output: true
