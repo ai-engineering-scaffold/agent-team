@@ -37,8 +37,8 @@ function dollars(micros: number): string {
 }
 
 // Over budget by at least a whole cent, the same rule the spend line uses, so the label and
-// the line never disagree.
-function isOverBudget(totalCostMicros: number, budgetUsd: number): boolean {
+// the line never disagree. The /metrics page uses it too (spec 003, AC3).
+export function isOverBudget(totalCostMicros: number, budgetUsd: number): boolean {
   return Math.round((totalCostMicros - toMicros(budgetUsd)) / 10_000) > 0;
 }
 
