@@ -36,9 +36,9 @@ Two or three sentences.
 
 Issue bodies are long Markdown, so never pass one inline with `--body`, a heredoc or `$(...)`. The pipeline's planner may be refused those commands, which is the likely reason spec 004's first issue lost its Design section.
 
-1. Write the body to a file under `/tmp/issue-bodies/` with the Write tool, for example `/tmp/issue-bodies/1.md`.
-2. Run `gh issue create --title "..." --label spec-NNN --body-file /tmp/issue-bodies/1.md`.
-3. Run `gh issue view <number>` and check that every section you wrote is there, including `## Design` on the first issue. If one is missing, fix it with `gh issue edit <number> --body-file /tmp/issue-bodies/1.md` and check again.
+1. Write each issue's body to its own file under `/tmp/issue-bodies/` with the Write tool, named by build order: `/tmp/issue-bodies/<order>.md`.
+2. Run `gh issue create --title "..." --label spec-NNN --body-file /tmp/issue-bodies/<order>.md`.
+3. Run `gh issue view <number>` and check that every section you wrote is there, including `## Design` on the first issue. If one is missing, fix that issue's own file and run `gh issue edit <number> --body-file /tmp/issue-bodies/<order>.md`, then check again. Only edit issues you created in this run, only their body, and never change labels.
 4. If a later issue refers to a decision ("the tokens from #N", "ADR NNNN"), check that the decision is written in the issue it points to.
 
 ## Order
