@@ -28,6 +28,8 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+      # Starts agent-unblock when the issue is blocked.
+      actions: write
     outputs:
       subtype: ${{ steps.result.outputs.subtype }}
       cost_usd: ${{ steps.result.outputs.cost_usd }}
@@ -81,18 +83,50 @@ jobs:
               || echo "::warning::Could not read the agent's result, so the run is recorded with no cost."
           fi
       - name: Mark the issue blocked if no PR was opened
+        id: blocked
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           ISSUE: ${{ inputs.issue }}
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           # Without this, agent-pipeline would retry the same issue on every merge.
           if ! gh pr list --repo "$REPO" --state open --json headRefName \
             --jq "any(.[]; .headRefName | test(\"/issue-$ISSUE-\"))" | grep -q true; then
-            gh label create blocked --repo "$REPO" --color B60205 --description "Needs Graham before the pipeline retries it" 2>/dev/null || true
+            gh label create blocked --repo "$REPO" --color B60205 --description "The build stopped; the tech lead gets one round, then Graham" 2>/dev/null || true
             gh issue edit "$ISSUE" --repo "$REPO" --add-label blocked
-            echo "::warning::No PR was opened for #$ISSUE, so it is labelled blocked. Remove the label to retry."
+            # The action hides the agent's output, so say on the issue why it stopped: the agent's last
+            # message and any tool calls its permissions refused (tool and target only).
+            {
+              echo "No PR was opened for this issue, so it is labelled \`blocked\`. Run: $RUN_URL"
+              if [ -f "$EXECUTION_FILE" ]; then
+                jq -r 'map(select(.type == "result")) | last // {} |
+                  (if (.result | type) == "string" and .result != "" then "\n**Agent'"'"'s last message**\n\n" + (.result | .[0:3000]) else empty end),
+                  (if (.permission_denials | type) == "array" and (.permission_denials | length) > 0 then
+                    "\n**Refused tool calls**\n",
+                    (.permission_denials[:20][] | "- `\(.tool_name)`: `\((.tool_input.command // .tool_input.file_path // .tool_input.pattern // "") | tostring | gsub("[`\n]"; " ") | .[0:200])`")
+                  else empty end)' "$EXECUTION_FILE" || true
+              fi
+            } > "$RUNNER_TEMP/blocked.md"
+            gh issue comment "$ISSUE" --repo "$REPO" --body-file "$RUNNER_TEMP/blocked.md" || true
+            echo "blocked=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::No PR was opened for #$ISSUE, so it is labelled blocked."
+          fi
+      # ADR 0015: one tech-lead round per issue before it waits for Graham. agent-unblock checks the
+      # unblock-tried label itself, so a second block on the same issue goes straight to Graham.
+      - name: Send the issue back to the tech lead
+        if: always() && steps.blocked.outputs.blocked == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ inputs.issue }}
+        run: |
+          if gh issue view "$ISSUE" --repo "$REPO" --json labels --jq 'any(.labels[]; .name == "unblock-tried")' | grep -q true; then
+            echo "::warning::#$ISSUE already had its tech-lead round, so it waits for Graham. Remove the blocked label to retry."
+          else
+            gh workflow run agent-unblock.yml --repo "$REPO" --ref main -f issue="$ISSUE"
           fi
 
   # Spec 002: records the build on the metrics branch, even if it failed, timed out or was cancelled.

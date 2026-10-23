@@ -6,7 +6,8 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultDeps, type Deps } from "../../scripts/ledger/cli.ts";
 import { labelOverBudget, parseLabelArgs } from "../../scripts/ledger/label-over-budget.ts";
-import { main as recordMain, parseRecordEnv } from "../../scripts/ledger/record.ts";
+import { gatherInput, main as recordMain, parseRecordEnv } from "../../scripts/ledger/record.ts";
+import { buildRecord } from "../../lib/ledger/record.ts";
 import { main as spendMain, parseSpendArgs, UNAVAILABLE } from "../../scripts/ledger/spend-line.ts";
 
 const run = promisify(execFile);
@@ -64,10 +65,25 @@ describe("record.ts reads every value from env and checks it", () => {
     ["an unknown workflow", { WORKFLOW: "deploy" }],
     ["a plan spec that is not three digits", { WORKFLOW: "plan", PLAN_SPEC: "002\nx" }],
     ["a build with no issue", { WORKFLOW: "build" }],
+    ["an unblock with no issue", { WORKFLOW: "unblock" }],
     ["a review with a PR that is not a number", { PR: "41; rm -rf /" }],
     ["an unknown job result", { JOB_RESULT: "maybe" }],
   ])("rejects %s", (_name, overrides) => {
     expect(() => parseRecordEnv({ ...reviewEnv, ...overrides })).toThrow();
+  });
+
+  it("records a tech-lead unblock run against its issue, with the spec from the issue's label", async () => {
+    const args = parseRecordEnv({ ...reviewEnv, WORKFLOW: "unblock", AGENT_JOB: "unblock", ISSUE: "44", PR: undefined });
+    expect(args).toMatchObject({ workflow: "unblock", issue: 44, pr: null });
+    const gh: Deps["gh"] = async (cmd) => {
+      if (cmd[0] === "issue") return '["blocked","spec-004","unblock-tried"]\n';
+      if (cmd[1].endsWith("/jobs")) {
+        return `${JSON.stringify({ name: "unblock", started_at: "2026-10-23T10:00:05Z", completed_at: "2026-10-23T10:06:00Z", steps: [step("success")] })}\n`;
+      }
+      return "2026-10-23T10:00:00Z\n";
+    };
+    const result = buildRecord(await gatherInput(args, { ...defaultDeps, gh }));
+    expect(result).toMatchObject({ recorded: true, record: { workflow: "unblock", spec: "004", issue: 44, pr: null } });
   });
 });
 

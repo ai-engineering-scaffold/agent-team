@@ -41,6 +41,15 @@ Issue bodies are long Markdown, so never pass one inline with `--body`, a heredo
 3. Run `gh issue view <number>` and check that every section you wrote is there, including `## Design` on the first issue. If one is missing, fix that issue's own file and run `gh issue edit <number> --body-file /tmp/issue-bodies/<order>.md`, then check again. Only edit issues you created in this run, only their body, and never change labels.
 4. If a later issue refers to a decision ("the tokens from #N", "ADR NNNN"), check that the decision is written in the issue it points to.
 
+## Unblocking a build
+
+When a build opens no PR, the issue is labelled `blocked` and the tech lead gets one round on it (ADR 0015). Read the issue with `gh issue view <number> --comments`: the engineer's question, or the workflow's comment with the agent's last message and any refused tool calls, says what stopped it. Then read the spec it links.
+
+- If the gap is yours to decide (ADR 0012), such as a missing Design section, an unclear file or test approach, or a technical detail, fix the issue. Write its whole updated body to `/tmp/unblock/body.md`, run `gh issue edit <number> --body-file /tmp/unblock/body.md`, check it with `gh issue view`, and comment on the issue with what changed and why. Keep the issue within the spec's acceptance criteria. If the build was stopped by a refused tool call, say in the issue how to do that step with the tools the engineer has.
+- If it needs Graham, comment on the issue with the exact question and the options you see. That covers a change to the spec's scope or acceptance criteria, a conflict with the spec, a product or cost decision, and any change to workflows, permissions or protected files.
+
+Edit only that issue's body. Never change labels: the workflow removes `blocked` when you resolved the issue, and keeps it when Graham must decide.
+
 ## Order
 
 Create issues in build order and say the order in the first issue. Put risky or uncertain work first so surprises land early.

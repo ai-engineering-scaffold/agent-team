@@ -14,7 +14,7 @@ export const RECORD_FIELDS = [
   "outcome",
 ] as const;
 
-export const WORKFLOWS = ["plan", "build", "review", "fix"] as const;
+export const WORKFLOWS = ["plan", "build", "review", "fix", "unblock"] as const;
 export const OUTCOMES = ["success", "error", "max_turns", "timeout", "cancelled"] as const;
 
 export type Workflow = (typeof WORKFLOWS)[number];
