@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { marked } from "marked";
 import { getDecision, listDecisions } from "@/lib/decisions";
+import { renderAdrBody } from "@/lib/markdown";
 
 // Only ADRs that exist at build time get a page; anything else is a 404.
 export const dynamicParams = false;
@@ -20,7 +20,7 @@ export default async function DecisionPage({ params }: PageProps<"/decisions/[sl
   if (!decision) notFound();
 
   // ADRs are written by Graham and the agents and land only through reviewed PRs.
-  const html = await marked.parse(decision.body);
+  const html = renderAdrBody(decision.body);
 
   return (
     <article>

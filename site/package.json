@@ -6,6 +6,7 @@
     "dev": "next dev",
     "prebuild": "node scripts/ledger/fetch.mjs",
     "build": "next build",
+    "build:e2e": "LEDGER_SKIP_FETCH=1 npm run build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
