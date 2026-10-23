@@ -98,6 +98,12 @@ main {
   font-weight: 600;
 }
 
+/*
+ * Tables (spec 004, AC6 and AC7): a sage header row with ink text (5.6:1),
+ * white body rows with sage separators, and right-aligned tabular numbers
+ * in columns marked `num`. Never put terracotta-dark or dark-olive text on
+ * sage: both fall below 4.5:1 there.
+ */
 table {
   width: 100%;
   border-collapse: collapse;
@@ -108,6 +114,57 @@ td {
   text-align: left;
   padding: 0.4rem 0.5rem;
   border-bottom: 1px solid var(--colour-sage);
+}
+
+thead th {
+  background: var(--colour-sage);
+  color: var(--colour-ink);
+  font-weight: 600;
+}
+
+tbody tr {
+  background: var(--colour-white);
+  color: var(--colour-ink);
+}
+
+/* Row header cells use body weight, so they don't look like the header row. */
+tbody th {
+  font-weight: 400;
+}
+
+th.num,
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keep any alignment a Markdown table sets (marked emits it as `align`). */
+th[align="right"],
+td[align="right"] {
+  text-align: right;
+}
+
+th[align="center"],
+td[align="center"] {
+  text-align: center;
+}
+
+/*
+ * Over budget: set from the same status that prints "Over budget", which
+ * stays as words so the status never depends on colour alone. The
+ * terracotta marker is 3.3:1 on cream; the status text is 5.2:1.
+ */
+tbody tr.over-budget {
+  background: var(--colour-cream);
+}
+
+tr.over-budget > :first-child {
+  border-left: 4px solid var(--colour-terracotta);
+}
+
+tr.over-budget .status {
+  color: var(--colour-terracotta-dark);
+  font-weight: 600;
 }
 
 pre,

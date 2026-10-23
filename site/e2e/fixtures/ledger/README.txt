@@ -4,7 +4,7 @@ When LEDGER_SKIP_FETCH=1 and VERCEL is not 1, `prebuild` (scripts/ledger/fetch.m
 ledger/ into site/.ledger/ledger/, so every Playwright test runs against these records and never
 against live `metrics` data. Every file is a valid spec 002 record with a fixed date, so the page
 built from it never changes. Edit a record only together with the tests that rely on it.
-For local e2e runs, build with `LEDGER_SKIP_FETCH=1 npm run build`, or the AC6 time test fails.
+For local e2e runs, build with `npm run build:e2e`, or the AC6 time test fails.
 
 Cases:
 

@@ -9,6 +9,7 @@ import {
   formatUtc,
   formatWeekSpend,
   metricsPageState,
+  OVER_BUDGET,
   runsByWeekRows,
   spendBySpecRows,
   UNAVAILABLE_MESSAGE,
@@ -63,18 +64,24 @@ function RunsByWeek({ rows }: { rows: WeekRow[] }) {
           <thead>
             <tr>
               <th scope="col">Week starting</th>
-              <th scope="col">Runs</th>
-              <th scope="col">Spend</th>
-              <th scope="col">Runs not successful</th>
+              <th scope="col" className="num">
+                Runs
+              </th>
+              <th scope="col" className="num">
+                Spend
+              </th>
+              <th scope="col" className="num">
+                Runs not successful
+              </th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.weekStart}>
                 <th scope="row">{row.weekStart}</th>
-                <td>{row.runs}</td>
-                <td>{formatWeekSpend(row)}</td>
-                <td>{row.notSuccess}</td>
+                <td className="num">{row.runs}</td>
+                <td className="num">{formatWeekSpend(row)}</td>
+                <td className="num">{row.notSuccess}</td>
               </tr>
             ))}
           </tbody>
@@ -95,25 +102,37 @@ function SpendBySpec({ rows }: { rows: SpendRow[] }) {
             <tr>
               <th scope="col">Spec</th>
               <th scope="col">Title</th>
-              <th scope="col">Spend</th>
-              <th scope="col">Budget</th>
+              <th scope="col" className="num">
+                Spend
+              </th>
+              <th scope="col" className="num">
+                Budget
+              </th>
               <th scope="col">Status</th>
-              <th scope="col">Runs</th>
-              <th scope="col">Runs with no cost</th>
+              <th scope="col" className="num">
+                Runs
+              </th>
+              <th scope="col" className="num">
+                Runs with no cost
+              </th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.spec}>
-                <th scope="row">{row.label}</th>
-                <td>{row.title ?? ""}</td>
-                <td>{formatSpend(row)}</td>
-                <td>{formatBudget(row)}</td>
-                <td>{budgetStatus(row)}</td>
-                <td>{row.runs}</td>
-                <td>{row.noCostRuns}</td>
-              </tr>
-            ))}
+            {rows.map((row) => {
+              // One status drives both the words and the row style, so they cannot disagree (AC7).
+              const status = budgetStatus(row);
+              return (
+                <tr key={row.spec} className={status === OVER_BUDGET ? "over-budget" : undefined}>
+                  <th scope="row">{row.label}</th>
+                  <td>{row.title ?? ""}</td>
+                  <td className="num">{formatSpend(row)}</td>
+                  <td className="num">{formatBudget(row)}</td>
+                  <td className="status">{status}</td>
+                  <td className="num">{row.runs}</td>
+                  <td className="num">{row.noCostRuns}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
