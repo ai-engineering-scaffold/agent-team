@@ -56,3 +56,54 @@ test("AC7: at 375 px wide, roles are readable without horizontal scrolling", asy
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
+
+const GATE_APPROVERS: Array<{ name: string; approver: RegExp }> = [
+  { name: "Spec", approver: /Graham/ },
+  { name: "Design", approver: /Graham/ },
+  { name: "CI", approver: /checks?/i },
+  { name: "Review", approver: /reviewer/i },
+  { name: "Merge", approver: /Graham/ },
+];
+
+test("AC4: the gates section lists Spec, Design, CI, Review, Merge in order, each with its approver", async ({ page }) => {
+  await page.goto("/how-we-work");
+  const section = page.getByRole("region", { name: "Gates" });
+  await expect(section.getByRole("heading", { level: 2, name: "Gates" })).toBeVisible();
+
+  const gates = section.getByRole("list", { name: "Gates" }).getByRole("listitem");
+  await expect(gates).toHaveCount(GATE_APPROVERS.length);
+
+  for (const [i, { name, approver }] of GATE_APPROVERS.entries()) {
+    const gate = gates.nth(i);
+    await expect(gate.getByRole("heading", { name, exact: true })).toBeVisible();
+    // The approver text is the gate's first paragraph, apart from the ADR links.
+    await expect(gate.getByRole("paragraph").first()).toHaveText(approver);
+  }
+});
+
+test("AC5: every gate links to ADR 0002, and the Merge gate also links to ADR 0006", async ({ page }) => {
+  await page.goto("/how-we-work");
+  const gates = page.getByRole("region", { name: "Gates" }).getByRole("list", { name: "Gates" }).getByRole("listitem");
+  await expect(gates).toHaveCount(GATE_APPROVERS.length);
+
+  for (const [i, { name }] of GATE_APPROVERS.entries()) {
+    const gate = gates.nth(i);
+    await expect(gate.getByRole("link", { name: "ADR 0002" })).toHaveAttribute("href", /\/decisions\/0002-/);
+    const adr6 = gate.getByRole("link", { name: "ADR 0006" });
+    if (name === "Merge") {
+      await expect(adr6).toHaveAttribute("href", /\/decisions\/0006-/);
+    } else {
+      await expect(adr6).toHaveCount(0);
+    }
+  }
+
+  // The links resolve to the ADR pages.
+  await gates.first().getByRole("link", { name: "ADR 0002" }).click();
+  await expect(page).toHaveURL(/\/decisions\/0002-/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+
+  await page.goto("/how-we-work");
+  await gates.last().getByRole("link", { name: "ADR 0006" }).click();
+  await expect(page).toHaveURL(/\/decisions\/0006-/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+});
