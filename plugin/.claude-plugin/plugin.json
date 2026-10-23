@@ -6,5 +6,6 @@
   "author": {
     "name": "AI Engineering Scaffold"
   },
-  "repository": "https://github.com/ai-engineering-scaffold/agent-team"
+  "repository": "https://github.com/ai-engineering-scaffold/agent-team",
+  "license": "MIT"
 }
