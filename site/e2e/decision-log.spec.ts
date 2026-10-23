@@ -1,4 +1,15 @@
+import { readdirSync } from "node:fs";
+import path from "node:path";
 import { expect, test } from "@playwright/test";
+
+// Tests run from site/, ADRs live one level up. The newest ADR is read from disk so a new ADR can't break this test.
+const DECISIONS_DIR = path.resolve(__dirname, "..", "..", "decisions");
+const newestAdr = readdirSync(DECISIONS_DIR)
+  // Same pattern as site/lib/decisions.ts, so the test and the site agree on which files are ADRs.
+  .filter((f) => /^\d{4}-[a-z0-9-]+\.md$/.test(f) && !f.startsWith("0000-"))
+  .sort()
+  .at(-1)
+  ?.slice(0, 4);
 
 test("home page links to the latest decisions", async ({ page }) => {
   await page.goto("/");
@@ -9,8 +20,9 @@ test("home page links to the latest decisions", async ({ page }) => {
 
 test("decision log lists ADRs newest first and opens one", async ({ page }) => {
   await page.goto("/decisions");
+  expect(newestAdr).toBeDefined();
   const rows = page.getByRole("row");
-  await expect(rows.nth(1)).toContainText("0008");
+  await expect(rows.nth(1)).toContainText(newestAdr!);
   await page.getByRole("link", { name: "Run an AI-native engineering org, in public" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Run an AI-native engineering org, in public" })).toBeVisible();
   await expect(page.getByText("Decided by")).toBeVisible();
