@@ -18,26 +18,32 @@ The README promises weekly numbers on shipping speed, defect rate and AI spend p
 
 ## Acceptance criteria
 
-- **AC1.** Given an agent run in any workflow (plan, build, review or fix), when the run ends, then the ledger gains one record with: date, workflow, spec, issue and PR (where they apply), cost in API-equivalent dollars, turns, duration and outcome.
-- **AC2.** Given an agent run that fails, times out or is cancelled after the agent started, when the run ends, then it is still recorded, with an outcome that says which.
-- **AC3.** Given a record, when anyone reads it, then it holds only the AC1 fields: no prompt, transcript, token or secret.
-- **AC4.** Given the ledger, when the site is built, then a loader in `site/lib/` returns every record and each spec's total spend and run count. Checked by a unit test against a fixture ledger.
-- **AC5.** Given a build PR, when the agent review posts its comment, then the comment shows the spec's spend so far against its `budget_usd`.
-- **AC6.** Given a spec whose recorded spend passes its `budget_usd`, when the next agent run for it is recorded, then its open PR (or, with none, its lowest open issue) gets an `over-budget` label, and the pipeline keeps building.
+The ledger is built in workflows, so most criteria are checked by unit tests in `site/tests/` against fixture files, not by Playwright. Each says how it is checked.
+
+- **AC1.** Given an agent run in the plan, build, review or fix workflow, when the run ends, then the ledger gains one record with: date, workflow, spec (or `none` for chores), issue and PR (or empty), cost in API-equivalent dollars, turns, duration of the agent step in seconds, and outcome. Checked by a unit test of the record builder against fixture outputs of a successful run.
+- **AC2.** Given any run, when it is recorded, then its outcome is exactly one of `success`, `error`, `max_turns`, `timeout` or `cancelled`. A run that times out or is cancelled after the agent started is still recorded, and when the agent reported no result, its cost and turns are `null`. Checked by the same unit test with a fixture for each outcome.
+- **AC3.** Given a record, then it contains exactly the AC1 fields: no prompt text, transcript, token counts or credentials. Checked by a schema test that rejects any extra field.
+- **AC4.** Given the ledger, when the site is built, then a loader in `site/lib/` returns every record and, per spec (with `none` as its own group), the total cost, the run count and the number of runs with no cost. Checked by a unit test against a fixture ledger.
+- **AC5.** Given a build PR, when the agent review posts its comment, then the comment includes a line with the spec's spend so far against its `budget_usd`, and the count of runs with no cost. Checked by a unit test of the line formatter.
+- **AC6.** Given a run is recorded and its spec's total then exceeds `budget_usd`, then the spec's open PR, or with none its lowest-numbered open issue, gets the `over-budget` label (created if missing), and the pipeline keeps building. Checked by a unit test of the function that picks the label target.
+
+None of these criteria has a Playwright test: they have no page. The metrics page spec will add those.
 
 ## Non-goals
 
 - The metrics page and the scribe's weekly post. They are the next spec and read this ledger.
+- Recording spec-writer runs. Specs are written in Claude sessions, not workflows, so spec totals cover planning, building, review and fixes only.
 - Backfilling spec 001's runs, unless the tech lead finds it cheap (see open questions).
 - Stopping work when a spec goes over budget. The label flags it, and Graham decides.
 - Real billing totals. Runs use Graham's subscription (ADR 0007), so dollars are API-equivalent.
 
 ## Success metric
 
-The first spec built after this ships has a recorded total that matches the sum of its runs' Actions logs, within a cent.
+For the first spec built after this ships, the ledger's total over runs that have a cost matches the sum of those runs' Actions logs, within a cent.
 
 ## Open questions
 
-- For the tech lead: where the ledger lives. Main only takes changes through PRs, so a workflow can't append to a file there. Options include a dedicated `metrics` branch, a weekly PR that adds the week's records, or Actions artifacts collected by a weekly job. This needs a design (gate 2).
+- For the tech lead: where the ledger lives. Main only takes changes through PRs, so a workflow can't append to a file there, and the static site build must still be able to read it (AC4). Options include a dedicated `metrics` branch or a weekly PR that adds the week's records to `metrics/` (a low-risk path). This needs a design (gate 2).
+- For the tech lead: a step inside a job that times out or is cancelled may not run, so AC2 may need recording in a separate job that runs after the agent's job.
 - Can spec 001's runs be backfilled from Actions logs, or have they expired?
 - Recording happens in `.github/workflows/`, which agents may not edit. The build will need Graham to apply or approve the workflow parts.
