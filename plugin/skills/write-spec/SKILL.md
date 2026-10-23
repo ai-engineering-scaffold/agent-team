@@ -9,7 +9,7 @@ A spec is done when an engineer can build it and QA can test it without asking a
 
 ## File
 
-`specs/NNN-short-name.md`, where NNN is the next free three-digit number. Open it as a PR titled `spec: NNN short name`.
+`specs/NNN-short-name.md`, where NNN is the next free three-digit number. Open it as a PR titled `spec: NNN short name`, with `status: approved` already set. Graham approves a spec by merging its PR (gate 1); there is no separate approval step. A spec he doesn't want stays open or is closed.
 
 ## Template
 
@@ -17,7 +17,7 @@ A spec is done when an engineer can build it and QA can test it without asking a
 ---
 spec: NNN
 title: Short name of the feature
-status: draft # draft | approved | shipped | dropped
+status: approved # approved (on main once merged) | shipped | dropped
 budget_usd: 15 # AI spend allowed for this feature, all roles combined
 owner: Graham
 ---
