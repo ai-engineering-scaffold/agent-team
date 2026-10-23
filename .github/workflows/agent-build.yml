@@ -1,17 +1,11 @@
 # Builds one issue: the engineer implements it, QA adds Playwright tests for the spec's criteria, and the
-# result opens as a PR that goes through every gate. agent-pipeline calls this after each merge to main;
-# Graham can also start it by hand for one issue. See decisions/0008.
+# result opens as a PR that goes through every gate. agent-pipeline starts one run per ready spec and labels
+# the issue `building` first; Graham can also start it by hand for one issue. See decisions/0008 and 0016.
 name: agent-build
+# agent-pipeline matches running builds to their issues by this name.
+run-name: "agent-build #${{ inputs.issue }}"
 
 on:
-  workflow_call:
-    inputs:
-      issue:
-        type: number
-        required: true
-    secrets:
-      CLAUDE_CODE_OAUTH_TOKEN:
-        required: true
   workflow_dispatch:
     inputs:
       issue:
@@ -19,10 +13,15 @@ on:
         type: number
         required: true
 
+concurrency:
+  group: agent-build-${{ inputs.issue }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Most specs build as one issue (ADR 0016), so a build has room for a whole spec.
+    timeout-minutes: 90
     permissions:
       contents: write
       pull-requests: write
@@ -41,7 +40,19 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - run: npm ci && npx playwright install --with-deps chromium
+      - run: npm ci
+        working-directory: site
+      # ADR 0016: the browser is cached by lockfile, so only its system packages install on a hit.
+      - id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('site/package-lock.json') }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+        working-directory: site
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: site
       - id: agent
         uses: anthropics/claude-code-action@v1
@@ -66,7 +77,7 @@ jobs:
             3. Push the branch and open a PR with the repository's template that says "Closes #${{ inputs.issue }}".
             If the issue is unclear, comment on it with the question instead of guessing, and stop.
           claude_args: |
-            --max-turns 80
+            --max-turns 120
             --allowedTools "Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(gh pr create:*),Bash(gh pr view:*)"
       # Spec 002: the agent's result for the record job. Only these three words or numbers leave the job.
       - name: Report the agent's result
@@ -128,9 +139,20 @@ jobs:
           else
             gh workflow run agent-unblock.yml --repo "$REPO" --ref main -f issue="$ISSUE"
           fi
+      # The issue now has a PR or is blocked, either of which holds its spec, so the building label goes.
+      # Then the pipeline looks again: this build's slot is free for another spec.
+      - name: Release the issue and look for the next step
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ inputs.issue }}
+        run: |
+          gh issue edit "$ISSUE" --repo "$REPO" --remove-label building || true
+          gh workflow run agent-pipeline.yml --repo "$REPO" --ref main
 
   # Spec 002: records the build on the metrics branch, even if it failed, timed out or was cancelled.
-  # Runs main's scripts. When agent-pipeline calls this, its build job must grant actions: read.
+  # Runs main's scripts.
   record:
     needs: build
     if: always() && needs.build.result != 'skipped'
@@ -143,10 +165,9 @@ jobs:
       issues: write
     env:
       WORKFLOW: build
-      # Shows as "build / build" when agent-pipeline calls this; the script matches either name.
       AGENT_JOB: build
       # Keep equal to the build job's timeout-minutes.
-      TIMEOUT_MINUTES: "60"
+      TIMEOUT_MINUTES: "90"
     steps:
       - uses: actions/checkout@v5
         with:

@@ -1,7 +1,11 @@
-# Applies the reviewer's requested changes to an agent-built PR, so a CHANGES_REQUESTED review doesn't wait on a
-# person. agent-review starts this after a CHANGES_REQUESTED verdict; the push then runs CI and the review again.
-# It only touches build PRs (spec-NNN/issue-N-*) and stops after two rounds. See decisions/0009.
+# Fixes an agent-built PR so it doesn't wait on a person. Three things start it:
+# - review: agent-review after a CHANGES_REQUESTED verdict (decisions/0009),
+# - ci: agent-watch after the checks fail on the PR (decisions/0016),
+# - conflict: agent-pipeline when the PR conflicts with main (decisions/0016).
+# The push then runs CI and the review again. It only touches build PRs (spec-NNN/issue-N-*), and each reason
+# gets two rounds before the PR is labelled blocked for Graham.
 name: agent-fix
+run-name: "agent-fix #${{ inputs.pr }} (${{ inputs.reason }})"
 
 on:
   workflow_dispatch:
@@ -10,6 +14,15 @@ on:
         description: PR number to fix
         type: number
         required: true
+      reason:
+        description: What to fix
+        type: choice
+        options: [review, ci, conflict]
+        default: review
+      sha:
+        description: The PR head commit the trigger saw; the run stops if the PR has moved on since
+        type: string
+        required: false
 
 concurrency:
   group: agent-fix-${{ inputs.pr }}
@@ -38,23 +51,53 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ inputs.pr }}
+          REASON: ${{ inputs.reason }}
+          SHA: ${{ inputs.sha }}
         run: |
           set -euo pipefail
-          read -r ref state same_repo < <(gh api "repos/$REPO/pulls/$PR" \
-            --jq "[.head.ref, .state, (.head.repo.full_name == \"$REPO\")] | @tsv")
+          read -r ref state same_repo head blocked < <(gh api "repos/$REPO/pulls/$PR" \
+            --jq "[.head.ref, .state, (.head.repo.full_name == \"$REPO\"), .head.sha, any(.labels[]; .name == \"blocked\")] | @tsv")
           if [ "$state" != "open" ] || [ "$same_repo" != "true" ] || ! [[ "$ref" =~ ^spec-[0-9]{3}/issue-[0-9]+- ]]; then
             echo "#$PR is not an open build PR from this repo, so it is left alone."
             echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
+          if [ "$blocked" = "true" ]; then
+            echo "#$PR is labelled blocked, so it waits for Graham."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ -n "$SHA" ] && [ "$SHA" != "$head" ]; then
+            echo "#$PR has new commits since the $REASON trigger, and they run the checks again, so this run stops."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$REASON" = conflict ]; then
+            # GitHub works out mergeability in the background after a push, so UNKNOWN can mean "not yet".
+            mergeable=UNKNOWN
+            for _ in 1 2 3 4 5 6; do
+              mergeable="$(gh pr view "$PR" --repo "$REPO" --json mergeable --jq .mergeable)"
+              [ "$mergeable" != UNKNOWN ] && break
+              sleep 10
+            done
+            if [ "$mergeable" != CONFLICTING ]; then
+              echo "#$PR does not conflict with main ($mergeable), so there is nothing to merge."
+              echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          fi
+          # Each reason counts its own rounds, by the commit subject the agent is told to use.
+          case "$REASON" in
+            review)   prefix="Address agent review"; why="The reviewer still requests changes" ;;
+            ci)       prefix="Fix CI";               why="The checks still fail" ;;
+            conflict) prefix="Merge main";           why="The PR still conflicts with main" ;;
+            *) echo "::error::Unknown reason $REASON."; exit 1 ;;
+          esac
           rounds="$(gh api "repos/$REPO/pulls/$PR/commits" --paginate \
-            --jq '[.[] | select(.commit.message | startswith("Address agent review"))] | length')"
+            --jq "[.[] | select(.commit.message | startswith(\"$prefix\"))] | length")"
           if [ "$rounds" -ge "$MAX_ROUNDS" ]; then
             gh label create blocked --repo "$REPO" --color B60205 --description "Needs Graham before the pipeline retries it" 2>/dev/null || true
             gh pr edit "$PR" --repo "$REPO" --add-label blocked
-            gh pr comment "$PR" --repo "$REPO" --body "The reviewer still requests changes after $rounds automatic fix rounds, so this PR is labelled \`blocked\` and needs Graham."
+            gh pr comment "$PR" --repo "$REPO" --body "$why after $rounds automatic fix rounds, so this PR is labelled \`blocked\` and needs Graham."
             echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          echo "Fix round $((rounds + 1)) of $MAX_ROUNDS on $ref."
+          echo "Fix round $((rounds + 1)) of $MAX_ROUNDS ($REASON) on $ref."
           { echo "run=true"; echo "ref=$ref"; } >> "$GITHUB_OUTPUT"
 
       - if: steps.guard.outputs.run == 'true'
@@ -69,7 +112,20 @@ jobs:
           cache: npm
           cache-dependency-path: site/package-lock.json
       - if: steps.guard.outputs.run == 'true'
-        run: npm ci && npx playwright install --with-deps chromium
+        run: npm ci
+        working-directory: site
+      # ADR 0016: the browser is cached by lockfile, so on a hit only its system packages install.
+      - if: steps.guard.outputs.run == 'true'
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('site/package-lock.json') }}
+      - if: steps.guard.outputs.run == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+        working-directory: site
+      - if: steps.guard.outputs.run == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
         working-directory: site
       - if: steps.guard.outputs.run == 'true'
         id: agent
@@ -88,23 +144,34 @@ jobs:
             REPO: ${{ github.repository }}
             PR: #${{ inputs.pr }}
             BRANCH: ${{ steps.guard.outputs.ref }} (already checked out)
+            REASON: ${{ inputs.reason }}
 
-            The reviewer agent requested changes on this PR. Its review is the latest comment on the PR that ends
-            with "Verdict: CHANGES_REQUESTED"; read it with `gh pr view ${{ inputs.pr }} --comments`.
+            Use the scaffold-org:engineer subagent, in the foreground, for the part below that matches REASON.
 
-            Use the scaffold-org:engineer subagent, in the foreground, to address the review:
-            - Fix every blocking finding.
-            - Apply a suggestion only if it is small and stays within the files this PR already changes.
+            review: The reviewer agent requested changes on this PR. Its review is the latest comment on the PR that
+            ends with "Verdict: CHANGES_REQUESTED"; read it with `gh pr view ${{ inputs.pr }} --comments`. Fix every
+            blocking finding. Apply a suggestion only if it is small and stays within the files this PR already
+            changes. Commit with a subject that starts "Address agent review: ".
+
+            ci: The checks failed on this PR's latest commit. See which with `gh pr checks ${{ inputs.pr }}` and read
+            the failing job's log with `gh run view <run-id> --log-failed`. Fix the cause in the PR's code. Commit
+            with a subject that starts "Fix CI: ".
+
+            conflict: This PR conflicts with main. Run `git fetch origin main` and `git merge origin/main`, and
+            resolve every conflict so that both this PR's change and main's changes keep working. Commit the merge
+            with a subject that starts "Merge main: " and names the files that conflicted.
+
+            For every reason:
             - Never skip, weaken or delete a test, and never edit `.github/`, `specs/`, `plugin/hooks/` or an ADR that already exists on main.
             - Run `npm --prefix site run check`, then `npm --prefix site run build && npm --prefix site run test:e2e`,
               and fix anything they report.
-            - Commit with a subject that starts "Address agent review: ", and push to the branch. Never force-push.
+            - Push to the branch. Never force-push or rebase.
             Then run `gh pr comment ${{ inputs.pr }} --body-file <file>` with a short list of what was fixed, and
-            each suggestion left as it is with the reason.
-            If a finding can't be fixed within the PR's scope, don't push a partial fix for it; say so in the comment.
+            anything left as it is with the reason.
+            If something can't be fixed within the PR's scope, don't push a partial fix for it; say so in the comment.
           claude_args: |
             --max-turns 80
-            --allowedTools "Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+            --allowedTools "Agent,Read,Grep,Glob,Edit,Write,Bash(git:*),Bash(npm:*),Bash(npx:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh run view:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
       # Spec 002: the agent's result for the record job. Only these three words or numbers leave the job.
       - name: Report the agent's result
         id: result

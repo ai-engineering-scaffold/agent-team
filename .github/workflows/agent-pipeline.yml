@@ -1,25 +1,44 @@
-# Moves approved work forward on every merge to main, so no one has to start a build by hand.
-# After each merge it finds the next step: plan an approved spec that has no issues yet, or build the
-# lowest-numbered open issue of an approved spec. One build runs at a time. See decisions/0008.
+# Moves approved work forward, so no one has to start a build by hand. Each run starts every step that is
+# ready: a build for the next issue of each approved spec (one build per spec at a time, at most MAX_BUILDS
+# at once) and a plan for the first approved spec with no issues. It also sends build PRs that conflict
+# with main to the fix agent. See decisions/0008 and decisions/0016.
 #
-# Pushes to main only come from merged PRs (the ruleset requires them), so every run follows a gate
+# Pushes to main only come from merged PRs (the ruleset requires them), so every build follows a gate
 # Graham passed: a merged spec (gate 1) or a merged build.
 name: agent-pipeline
 
 on:
   push:
     branches: [main]
+  # Graham removed `blocked` from an issue, so its build can retry.
+  issues:
+    types: [unlabeled]
+  # A build PR was closed without merging, so its issue can be built again.
+  pull_request_target:
+    types: [closed]
+  # A safety net, every 5 minutes (GitHub's shortest, and often late). Without the MERGE_TOKEN secret,
+  # auto-merge uses the workflow token, whose merges start no workflows, so this is what picks them up.
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 concurrency:
   group: agent-pipeline-${{ github.event_name }}
   cancel-in-progress: false
 
+env:
+  # Builds that may run at once, across all specs. Each one is a long Opus session on the subscription.
+  MAX_BUILDS: 3
+
 jobs:
-  # claude-code-action doesn't run on push events, so a push only re-dispatches this workflow,
-  # and the agents run in that workflow_dispatch run.
+  # claude-code-action doesn't run on these events, so they only re-dispatch this workflow, and the picker
+  # and agents run in that workflow_dispatch run. pull_request_target never checks out the PR here.
   relay:
-    if: github.event_name == 'push'
+    if: >-
+      github.event_name == 'push' || github.event_name == 'schedule' ||
+      (github.event_name == 'issues' && github.event.label.name == 'blocked') ||
+      (github.event_name == 'pull_request_target' && !github.event.pull_request.merged &&
+       startsWith(github.event.pull_request.head.ref, 'spec-'))
     runs-on: ubuntu-latest
     permissions:
       actions: write
@@ -33,27 +52,49 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: read
+      issues: write
       pull-requests: read
+      actions: read
     outputs:
-      action: ${{ steps.pick.outputs.action }}
-      spec: ${{ steps.pick.outputs.spec }}
-      issue: ${{ steps.pick.outputs.issue }}
+      plan: ${{ steps.pick.outputs.plan }}
+      builds: ${{ steps.pick.outputs.builds }}
     steps:
       - uses: actions/checkout@v5
         with:
           sparse-checkout: specs
-      - name: Pick the next step
+      - name: Clear stale building labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # agent-build runs are named "agent-build #N", so a running build can be matched to its issue. A
+          # label with no build behind it (the run was lost) would hold its spec forever. Ten minutes covers
+          # a build that was dispatched but has not started yet.
+          active="$(gh run list --repo "$REPO" --workflow agent-build.yml --limit 100 --json displayTitle,status \
+            --jq '[.[] | select(.status != "completed") | .displayTitle]')"
+          cutoff="$(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%SZ)"
+          for num in $(gh issue list --repo "$REPO" --label building --state all --limit 100 --json number --jq '.[].number'); do
+            if jq -e --arg t "agent-build #$num" 'any(.[]; . == $t)' <<<"$active" >/dev/null; then continue; fi
+            labelled="$(gh api "repos/$REPO/issues/$num/events" --paginate \
+              --jq '.[] | select(.event == "labeled" and .label.name == "building") | .created_at' | tail -n 1)"
+            if [[ -z "$labelled" || "$labelled" < "$cutoff" ]]; then
+              gh issue edit "$num" --repo "$REPO" --remove-label building
+              echo "::warning::#$num was labelled building with no build running, so the label is cleared."
+            fi
+          done
+      - name: Pick the steps that are ready
         id: pick
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          action=none; spec=""; issue=""
+          plan=""; builds=()
           # A build PR's branch is spec-NNN/issue-N-short-name, so it names the issue it builds.
           branches="$(gh pr list --repo "$REPO" --state all --limit 200 --json headRefName,state \
             --jq '[.[] | select(.state != "CLOSED") | .headRefName]')"
+          running="$(gh issue list --repo "$REPO" --label building --state open --json number --jq length)"
 
           for f in specs/[0-9][0-9][0-9]-*.md; do
             [ -e "$f" ] || continue
@@ -62,8 +103,13 @@ jobs:
             label="spec-$n"
 
             total="$(gh issue list --repo "$REPO" --label "$label" --state all --json number --jq length)"
-            if [ "$total" -eq 0 ]; then action=plan; spec="$n"; break; fi
+            if [ "$total" -eq 0 ]; then
+              # One plan per run: the plan job dispatches this workflow again, which plans the next spec.
+              if [ -z "$plan" ]; then plan="$n"; else echo "Spec $n is planned in the next run."; fi
+              continue
+            fi
 
+            # A spec's issues build in order, so only its lowest-numbered open issue can start.
             first="$(gh issue list --repo "$REPO" --label "$label" --state open --limit 200 --json number,labels \
               --jq 'sort_by(.number) | first // empty')"
             [ -n "$first" ] || continue
@@ -72,19 +118,83 @@ jobs:
 
             if [[ ",$labels," == *",design-needed,"* ]]; then echo "#$num is labelled design-needed, which ADR 0012 retired; remove the label to build it."; continue; fi
             if [[ ",$labels," == *",blocked,"* ]]; then echo "#$num is blocked: it is with the tech lead, or waits for Graham if it is also labelled unblock-tried."; continue; fi
+            if [[ ",$labels," == *",building,"* ]]; then echo "#$num is being built."; continue; fi
             if jq -e --arg n "$num" 'any(.[]; test("/issue-" + $n + "-"))' <<<"$branches" >/dev/null; then
-              echo "#$num already has an open or merged PR, so a build is in flight."
-              action=none; break
+              echo "#$num already has an open or merged PR, so spec $n waits for it."
+              continue
             fi
-            action=build; spec="$n"; issue="$num"; break
+            if [ $((running + ${#builds[@]})) -ge "$MAX_BUILDS" ]; then
+              echo "#$num is ready, but $MAX_BUILDS builds are running. It starts when one finishes."
+              continue
+            fi
+            builds+=("$num")
           done
 
-          echo "Next step: $action ${spec:+spec $spec} ${issue:+issue #$issue}"
-          { echo "action=$action"; echo "spec=$spec"; echo "issue=$issue"; } >> "$GITHUB_OUTPUT"
+          builds_json="$(jq -cn '$ARGS.positional | map(tonumber)' --args "${builds[@]}")"
+          echo "Plan: ${plan:-none}. Builds: $builds_json"
+          { echo "plan=$plan"; echo "builds=$builds_json"; } >> "$GITHUB_OUTPUT"
+
+  # Each build runs as its own agent-build run, so this run ends in seconds and the next merge isn't queued
+  # behind a long build. The building label marks the issue as taken until agent-build ends.
+  start-builds:
+    needs: next
+    if: needs.next.outputs.builds != '' && needs.next.outputs.builds != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BUILDS: ${{ needs.next.outputs.builds }}
+        run: |
+          set -euo pipefail
+          gh label create building --repo "$REPO" --color 0E8A16 --description "An agent build for this issue is running" 2>/dev/null || true
+          for num in $(jq -r '.[]' <<<"$BUILDS"); do
+            gh issue edit "$num" --repo "$REPO" --add-label building
+            if gh workflow run agent-build.yml --repo "$REPO" --ref main -f issue="$num"; then
+              echo "Started agent-build for #$num."
+            else
+              gh issue edit "$num" --repo "$REPO" --remove-label building
+              echo "::error::Could not start agent-build for #$num."
+            fi
+          done
+
+  # ADR 0016: a build PR that conflicts with main goes to the fix agent, which merges main into it.
+  # agent-fix checks the conflict again and caps the rounds, so sending a PR twice is harmless.
+  conflicts:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          prs="$(gh pr list --repo "$REPO" --state open --limit 100 --json number,headRefName,labels,isCrossRepository \
+            --jq '.[] | select((.headRefName | test("^spec-[0-9]{3}/issue-[0-9]+-")) and (.isCrossRepository | not)
+                  and (any(.labels[]; .name == "blocked") | not)) | .number')"
+          for pr in $prs; do
+            # GitHub works out mergeability in the background after a push, so UNKNOWN can mean "not yet".
+            state=UNKNOWN
+            for _ in 1 2 3 4 5 6; do
+              state="$(gh pr view "$pr" --repo "$REPO" --json mergeable --jq .mergeable)"
+              [ "$state" != UNKNOWN ] && break
+              sleep 10
+            done
+            if [ "$state" = CONFLICTING ]; then
+              gh workflow run agent-fix.yml --repo "$REPO" --ref main -f pr="$pr" -f reason=conflict
+              echo "#$pr conflicts with main, so agent-fix is merging main into it."
+            fi
+          done
 
   plan:
     needs: next
-    if: needs.next.outputs.action == 'plan'
+    if: needs.next.outputs.plan != ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -112,11 +222,12 @@ jobs:
           allowed_bots: github-actions
           prompt: |
             REPO: ${{ github.repository }}
-            SPEC: specs/${{ needs.next.outputs.spec }}-*.md
+            SPEC: specs/${{ needs.next.outputs.plan }}-*.md
 
             Use the scaffold-org:tech-lead subagent to slice this approved spec into GitHub issues with the
             slice-issues skill. Run it in the foreground and wait for its result.
-            Every issue gets the label spec-${{ needs.next.outputs.spec }}; create the label first if it does not exist.
+            Most specs are one issue: split only when the skill's rules for splitting apply (ADR 0016).
+            Every issue gets the label spec-${{ needs.next.outputs.plan }}; create the label first if it does not exist.
             Do not use the agent:build label: builds start automatically.
             Write no files in the repository. Write each issue body to a file under /tmp/issue-bodies/ and create the
             issue with --body-file, then check it with gh issue view and fix any missing section with gh issue edit
@@ -142,7 +253,9 @@ jobs:
               "turns=\(.num_turns | if type == "number" then . else "" end)"' "$EXECUTION_FILE" >> "$GITHUB_OUTPUT" \
               || echo "::warning::Could not read the agent's result, so the run is recorded with no cost."
           fi
-      - name: Start the first build
+      # The new issues can build, and the next unplanned spec can be planned.
+      - name: Look for the next step
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run agent-pipeline.yml --repo "${{ github.repository }}" --ref main
@@ -183,7 +296,7 @@ jobs:
           SUBTYPE: ${{ needs.plan.outputs.subtype }}
           COST_USD: ${{ needs.plan.outputs.cost_usd }}
           TURNS: ${{ needs.plan.outputs.turns }}
-          PLAN_SPEC: ${{ needs.next.outputs.spec }}
+          PLAN_SPEC: ${{ needs.next.outputs.plan }}
         run: node site/scripts/ledger/record.ts
       - name: Label the spec if it is over budget
         if: steps.record.outputs.recorded == 'true'
@@ -192,19 +305,3 @@ jobs:
           SPEC: ${{ steps.record.outputs.spec }}
           LEDGER_DIR: ${{ steps.record.outputs.ledger_dir }}
         run: node site/scripts/ledger/label-over-budget.ts --spec "$SPEC" --ledger "$LEDGER_DIR"
-
-  build:
-    needs: next
-    if: needs.next.outputs.action == 'build'
-    uses: ./.github/workflows/agent-build.yml
-    with:
-      issue: ${{ fromJSON(needs.next.outputs.issue) }}
-    secrets: inherit
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-      id-token: write
-      # agent-build starts agent-unblock and its record job reads job timings; a called workflow only gets
-      # what its caller grants.
-      actions: write

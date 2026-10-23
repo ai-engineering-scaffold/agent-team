@@ -1,20 +1,30 @@
 ---
 name: slice-issues
-description: How to break an approved spec into GitHub issues that each fit in one PR. Use when planning the build of a spec.
+description: How to turn an approved spec into GitHub issues, usually one per spec. Use when planning the build of a spec.
 ---
 
 # Slice a spec into issues
 
+## How many issues
+
+Default to **one issue for the whole spec** (ADR 0016). Every issue pays for its own build, CI run, review and merge, and the issues of one spec build one after another, so each extra issue adds a full round trip.
+
+Split only when one of these is true, and say which in the first issue:
+
+- One PR would be too big to review well: roughly over 1,000 changed lines, not counting tests and lockfiles.
+- A risky or uncertain part (a new dependency, a data model, a build-system change) should land and prove itself before the rest is built on it.
+
+Even then, use as few issues as the reason needs, normally two and rarely more than three.
+
 ## Each issue
 
-- Fits in one PR that a reviewer can read in 15 minutes: roughly under 400 changed lines.
 - Ships something that works on its own. No "part 1 of 3" that leaves `main` broken.
 - Title: `[SPEC-NNN] short imperative description`
 - Body:
 
 ```markdown
 Spec: specs/NNN-short-name.md
-Covers: AC1, AC3
+Covers: AC1, AC2, AC3
 
 ## What to build
 
@@ -26,11 +36,11 @@ Two or three sentences.
 
 ## Done when
 
-- [ ] AC1 and AC3 pass in Playwright on the preview deploy
+- [ ] AC1 to AC3 pass in Playwright on the preview deploy
 - [ ] Unit tests cover the new logic
 ```
 
-- Labels: `spec-NNN`. Never `design-needed`: there is no design gate (ADR 0012). A real technical choice goes in a `## Design` section of the first issue (options, choice, why), and that issue's PR adds the design doc and a proposed ADR. Builds start automatically after each merge to main, in issue-number order (ADR 0008), so create issues in the order they should be built.
+- Labels: `spec-NNN`. Never `design-needed`: there is no design gate (ADR 0012). A real technical choice goes in a `## Design` section of the first issue (options, choice, why), and that issue's PR adds the design doc and a proposed ADR. Builds start automatically (ADR 0008). A spec's issues build one at a time in issue-number order, while other specs build alongside them (ADR 0016), so create issues in the order they should be built.
 
 ## Creating and checking an issue
 
@@ -52,4 +62,4 @@ Edit only that issue's body. Never change labels: the workflow removes `blocked`
 
 ## Order
 
-Create issues in build order and say the order in the first issue. Put risky or uncertain work first so surprises land early.
+When a spec has more than one issue, create them in build order and say the order in the first issue. Put risky or uncertain work first so surprises land early.

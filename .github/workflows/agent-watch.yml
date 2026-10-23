@@ -1,0 +1,94 @@
+# Watches for work that would otherwise sit still. See decisions/0016.
+# - When the checks fail on a build PR, it sends the PR to the fix agent.
+# - Once a day it posts what is waiting on Graham on the "Waiting on Graham" issue, so a stalled pipeline is
+#   never silent.
+name: agent-watch
+
+on:
+  workflow_run:
+    workflows: [checks]
+    types: [completed]
+  schedule:
+    # 13:00 UTC, the start of Graham's working day.
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+
+jobs:
+  # workflow_run runs this file as it is on main, with the PR's head only as data, so it never runs PR code.
+  ci-failed:
+    if: >-
+      github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'spec-')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      actions: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          # Only build PRs are fixed automatically; agent-fix checks this again and caps the rounds.
+          if ! [[ "$BRANCH" =~ ^spec-[0-9]{3}/issue-[0-9]+- ]]; then
+            echo "$BRANCH is not a build branch, so it is left alone."; exit 0
+          fi
+          pr="$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr" ]; then echo "No open PR for $BRANCH."; exit 0; fi
+          gh workflow run agent-fix.yml --repo "$REPO" --ref main -f pr="$pr" -f reason=ci -f sha="$SHA"
+          echo "The checks failed on #$pr, so agent-fix is on it."
+
+  waiting-on-graham:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+      checks: read
+      statuses: read
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          note="$RUNNER_TEMP/note.md"
+          : > "$note"
+
+          blocked_issues="$(gh issue list --repo "$REPO" --label blocked --state open --limit 100 \
+            --json number,title --jq '.[] | "- #\(.number) \(.title)"')"
+          blocked_prs="$(gh pr list --repo "$REPO" --label blocked --state open --limit 100 \
+            --json number,title --jq '.[] | "- #\(.number) \(.title)"')"
+
+          # Ready for Graham: every other check passed (or was skipped) and only merge-gate, which waits for
+          # his approval, failed. Spec PRs and workflow PRs show up here too.
+          ready=""
+          for pr in $(gh pr list --repo "$REPO" --state open --limit 100 --json number,isDraft --jq '.[] | select(.isDraft | not) | .number'); do
+            checks="$(gh pr checks "$pr" --repo "$REPO" --json name,bucket || true)"
+            if jq -e '(any(.[]; .name == "merge-gate" and .bucket == "fail"))
+                and (all(.[] | select(.name != "merge-gate"); .bucket == "pass" or .bucket == "skipping"))' \
+                <<<"${checks:-[]}" >/dev/null; then
+              ready+="$(gh pr view "$pr" --repo "$REPO" --json number,title --jq '"- #\(.number) \(.title)"')"$'\n'
+            fi
+          done
+
+          [ -n "$ready" ] && printf '**Ready for your approval**\n\n%s\n' "$ready" >> "$note"
+          [ -n "$blocked_prs" ] && printf '**Blocked PRs**\n\n%s\n\n' "$blocked_prs" >> "$note"
+          [ -n "$blocked_issues" ] && printf '**Blocked issues**\n\n%s\n\n' "$blocked_issues" >> "$note"
+          if [ ! -s "$note" ]; then
+            echo "Nothing is waiting on Graham."; exit 0
+          fi
+
+          gh label create waiting-on-graham --repo "$REPO" --color 5319E7 --description "The daily list of work that waits on Graham" 2>/dev/null || true
+          issue="$(gh issue list --repo "$REPO" --label waiting-on-graham --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$issue" ]; then
+            gh issue create --repo "$REPO" --title "Waiting on Graham" --label waiting-on-graham \
+              --body "agent-watch comments here each morning with the work that waits on Graham (decisions/0016)."
+            issue="$(gh issue list --repo "$REPO" --label waiting-on-graham --state open --json number --jq '.[0].number')"
+          fi
+          gh issue comment "$issue" --repo "$REPO" --body-file "$note"
+          cat "$note"
