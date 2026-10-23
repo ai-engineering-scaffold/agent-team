@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { contrastRatio } from "../lib/theme";
 
 // Spec 004: table styling (AC6), the over-budget row (AC7) and tables not scrolling the page (AC5).
 // Tables and cells are located by role and visible text; computed styles are read in the browser.
@@ -60,6 +61,19 @@ async function expectText(table: Locator, column: string) {
   }
 }
 
+/** Converts an opaque computed `rgb()`/`rgba()` colour to upper-case hex; throws on anything else. */
+function opaqueHex(value: string): string {
+  const m = /^rgba?\(([^)]+)\)$/.exec(value.trim());
+  if (!m) throw new Error("Not an rgb() colour: " + value);
+  const parts = m[1].split(/[\s,/]+/).filter(Boolean);
+  if (parts.length > 3 && parseFloat(parts[3]) < 1) throw new Error("Colour is not opaque: " + value);
+  const hex = parts
+    .slice(0, 3)
+    .map((p) => Math.round(parseFloat(p)).toString(16).padStart(2, "0"))
+    .join("");
+  return ("#" + hex).toUpperCase();
+}
+
 const spendTable = (page: Page) => page.getByRole("table", { name: "Spend by spec" });
 const weeksTable = (page: Page) => page.getByRole("table", { name: "Runs by week" });
 const decisionTable = (page: Page) => page.getByRole("table", { name: "Decision log" });
@@ -98,18 +112,42 @@ test.describe("fixture ledger tables", () => {
     await expect(over).toContainText("Over budget");
     await expect(normal).not.toContainText("Over budget");
 
-    const first = (row: Locator) =>
+    // The fill sits on the row; the marker border sits on the row's first cell.
+    const look = (row: Locator) =>
       row.evaluate((el) => {
-        const cs = getComputedStyle(el.children[0]);
-        return { background: cs.backgroundColor, borderLeftWidth: parseFloat(cs.borderLeftWidth), borderLeftColor: cs.borderLeftColor };
+        const cell = getComputedStyle(el.children[0]);
+        return {
+          background: getComputedStyle(el).backgroundColor,
+          borderLeftWidth: parseFloat(cell.borderLeftWidth),
+          borderLeftColor: cell.borderLeftColor,
+        };
       });
-    const a = await first(over);
-    const b = await first(normal);
+    const a = await look(over);
+    const b = await look(normal);
     const differs =
       a.background !== b.background ||
       a.borderLeftWidth !== b.borderLeftWidth ||
       a.borderLeftColor !== b.borderLeftColor;
     expect(differs, "over-budget row background or left border differs from a normal row").toBe(true);
+  });
+
+  test("AC2: the over-budget row marker meets 3:1 against the row background", async ({ page }) => {
+    await page.goto("/metrics");
+    const over = spendTable(page).getByRole("row", { name: /^002 / });
+    await expect(over).toContainText("Over budget");
+
+    // The first cell has no fill of its own, so the marker sits on the row's background.
+    const { border, width, background } = await over.evaluate((el) => {
+      const cell = getComputedStyle(el.children[0]);
+      return {
+        border: cell.borderLeftColor,
+        width: parseFloat(cell.borderLeftWidth),
+        background: getComputedStyle(el).backgroundColor,
+      };
+    });
+    expect(width, "the over-budget row has a left border marker").toBeGreaterThan(0);
+    const ratio = contrastRatio(opaqueHex(border), opaqueHex(background));
+    expect(ratio, `marker ${border} on row ${background}`).toBeGreaterThanOrEqual(3);
   });
 });
 
