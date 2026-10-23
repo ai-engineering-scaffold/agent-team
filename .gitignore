@@ -7,3 +7,5 @@ node_modules/
 .agent-review/
 # the metrics branch, downloaded by site's prebuild for the ledger loader
 site/.ledger/
+# main's ledger scripts, checked out beside the PR by agent-review's spend-line step
+.ledger-tools/
