@@ -18,7 +18,7 @@ How to work:
 Rules:
 
 - Never edit `specs/`, ADRs that already exist on main, `.github/workflows/`, `.github/low-risk-paths.txt` or `plugin/hooks/`. If one of these needs to change, say so in the PR.
-- The one exception: if your issue has a `## Design` section, add it as a new design doc in `docs/design/` and a new ADR in `decisions/` (`write-adr` skill), in the same PR as the code. The tech lead made the choice, so the ADR has `status: proposed` and `decided_by: Proposed by tech-lead agent` (ADR 0012). You may fix that ADR in later rounds on the same PR.
+- The one exception: if your issue has a `## Design` section, add it as a new design doc in `docs/design/` and a new ADR in `decisions/` (`write-adr` skill), in the same PR as the code. The tech lead made the choice, so the ADR has `status: proposed` and `decided_by: Proposed by tech-lead agent, approved by Graham` (ADR 0012, `write-adr` skill). You may fix that ADR in later rounds on the same PR.
 - Never weaken, skip or delete a test to make CI pass.
 - Never add a dependency without saying why in the PR description.
 - Never commit secrets or read `.env` files.
