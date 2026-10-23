@@ -42,7 +42,7 @@ export function parseRecordEnv(env: Env): RecordArgs {
     planSpec = required(env, "PLAN_SPEC");
     if (!/^[0-9]{3}$/.test(planSpec)) throw new Error("PLAN_SPEC must be three digits");
   }
-  const issue = workflow === "build" ? positiveInt(required(env, "ISSUE"), "ISSUE") : null;
+  const issue = workflow === "build" || workflow === "unblock" ? positiveInt(required(env, "ISSUE"), "ISSUE") : null;
   const pr = workflow === "review" || workflow === "fix" ? positiveInt(required(env, "PR"), "PR") : null;
 
   return {
@@ -74,6 +74,12 @@ interface ApiJob {
   steps?: ApiStep[];
 }
 
+async function issueLabels(args: RecordArgs, deps: Deps): Promise<string[]> {
+  return JSON.parse(
+    await deps.gh(["issue", "view", String(args.issue), "--repo", args.repo, "--json", "labels", "--jq", "[.labels[].name]"]),
+  ) as string[];
+}
+
 // Reads the run's start, the agent job and step timings, and the PR, branch or labels that
 // give the record its spec, issue and pr.
 export async function gatherInput(args: RecordArgs, deps: Deps): Promise<RecordInput> {
@@ -99,9 +105,10 @@ export async function gatherInput(args: RecordArgs, deps: Deps): Promise<RecordI
     const found = open.find((p) => pattern.test(p.headRefName));
     pr = found?.number ?? null;
     branch = found?.headRefName ?? null;
-    labels = JSON.parse(
-      await deps.gh(["issue", "view", String(args.issue), "--repo", args.repo, "--json", "labels", "--jq", "[.labels[].name]"]),
-    ) as string[];
+    labels = await issueLabels(args, deps);
+  } else if (args.workflow === "unblock") {
+    // The tech lead's send-back works on the issue only, so its spec comes from the issue's label.
+    labels = await issueLabels(args, deps);
   } else if (pr !== null) {
     branch = (await deps.gh(["api", `repos/${args.repo}/pulls/${pr}`, "--jq", ".head.ref"])).trim();
   }

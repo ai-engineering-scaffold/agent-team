@@ -71,7 +71,7 @@ jobs:
             labels="$(jq -r '[.labels[].name] | join(",")' <<<"$first")"
 
             if [[ ",$labels," == *",design-needed,"* ]]; then echo "#$num is labelled design-needed, which ADR 0012 retired; remove the label to build it."; continue; fi
-            if [[ ",$labels," == *",blocked,"* ]]; then echo "#$num is blocked and needs Graham."; continue; fi
+            if [[ ",$labels," == *",blocked,"* ]]; then echo "#$num is blocked: it is with the tech lead, or waits for Graham if it is also labelled unblock-tried."; continue; fi
             if jq -e --arg n "$num" 'any(.[]; test("/issue-" + $n + "-"))' <<<"$branches" >/dev/null; then
               echo "#$num already has an open or merged PR, so a build is in flight."
               action=none; break
@@ -205,5 +205,6 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
-      # agent-build's record job reads job timings; a called workflow only gets what its caller grants.
-      actions: read
+      # agent-build starts agent-unblock and its record job reads job timings; a called workflow only gets
+      # what its caller grants.
+      actions: write

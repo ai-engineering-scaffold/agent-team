@@ -1,0 +1,171 @@
+# Gives a blocked build issue one round with the tech lead before it waits for Graham. agent-build starts
+# this when the engineer opens no PR. The tech lead either fills in what the engineer was missing and the
+# build retries, or says on the issue exactly what Graham must decide. The unblock-tried label limits each
+# issue to one round. See decisions/0015.
+name: agent-unblock
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Blocked issue to send back to the tech lead
+        type: number
+        required: true
+
+concurrency:
+  group: agent-unblock-${{ inputs.issue }}
+  cancel-in-progress: false
+
+jobs:
+  unblock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      issues: write
+      actions: write
+      id-token: write
+    outputs:
+      go: ${{ steps.guard.outputs.go }}
+      subtype: ${{ steps.result.outputs.subtype }}
+      cost_usd: ${{ steps.result.outputs.cost_usd }}
+      turns: ${{ steps.result.outputs.turns }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      ISSUE: ${{ inputs.issue }}
+    steps:
+      - name: Check the issue is waiting for its one round
+        id: guard
+        run: |
+          set -euo pipefail
+          info="$(gh issue view "$ISSUE" --repo "$REPO" --json state,labels)"
+          state="$(jq -r .state <<<"$info")"
+          labels="$(jq -r '[.labels[].name] | join(",")' <<<"$info")"
+          if [ "$state" != OPEN ] || [[ ",$labels," != *",blocked,"* ]] || ! grep -qE '(^|,)spec-[0-9]{3}(,|$)' <<<"$labels"; then
+            echo "#$ISSUE is not an open, blocked spec issue, so there is nothing to send back."
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [[ ",$labels," == *",unblock-tried,"* ]]; then
+            echo "#$ISSUE already had its tech-lead round, so it waits for Graham."
+            echo "go=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          gh label create unblock-tried --repo "$REPO" --color FBCA04 \
+            --description "Had its one tech-lead round after a blocked build" 2>/dev/null || true
+          gh issue edit "$ISSUE" --repo "$REPO" --add-label unblock-tried
+          echo "go=true" >> "$GITHUB_OUTPUT"
+      - if: steps.guard.outputs.go == 'true'
+        uses: actions/checkout@v5
+      - id: agent
+        if: steps.guard.outputs.go == 'true'
+        uses: anthropics/claude-code-action@v1
+        env:
+          # A backgrounded subagent outlives the run: Claude ends its turn and the job exits before the work lands.
+          CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: https://github.com/ai-engineering-scaffold/agent-team.git
+          plugins: scaffold-org@ai-engineering-scaffold
+          # agent-build dispatches these runs, so their actor is the workflow bot. Only that bot is allowed,
+          # and only people with write access can dispatch a workflow at all.
+          allowed_bots: github-actions
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE: #${{ inputs.issue }}
+
+            The engineer could not build this issue and opened no PR, so it is labelled blocked. Use the
+            scaffold-org:tech-lead subagent to give it one unblock round (slice-issues skill, "Unblocking a
+            build"). Run it in the foreground and wait for its result. It reads the issue with its comments
+            and the spec it links, and finds what stopped the build.
+            - If the gap is a technical choice or a missing detail that is the tech lead's to decide (ADR 0012),
+              it writes the whole updated issue body to /tmp/unblock/body.md, applies it with gh issue edit
+              --body-file, checks it with gh issue view, and comments on the issue with what it changed.
+              Then write the single word resolved to /tmp/unblock/outcome.
+            - If it needs Graham, because it changes the spec's scope or acceptance criteria, conflicts with the
+              spec, is a product or cost decision, or needs a change to workflows, permissions or protected
+              files, it comments on the issue with the exact question for Graham. Then write the single word
+              needs-graham to /tmp/unblock/outcome.
+            Edit only this issue's body. Never change labels, other issues, specs or repository files.
+          claude_args: |
+            --max-turns 30
+            --allowedTools "Agent,Read,Grep,Glob,Write(//tmp/unblock/**),Edit(//tmp/unblock/**),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*)"
+      # Spec 002: the agent's result for the record job. Only these three words or numbers leave the job.
+      - name: Report the agent's result
+        id: result
+        if: always() && steps.guard.outputs.go == 'true'
+        env:
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+        run: |
+          if [ -f "$EXECUTION_FILE" ]; then
+            jq -r 'map(select(.type == "result")) | last // {} |
+              "subtype=\(.subtype | if type == "string" and test("^[a-z_]+$") then . else "" end)",
+              "cost_usd=\(.total_cost_usd | if type == "number" then . else "" end)",
+              "turns=\(.num_turns | if type == "number" then . else "" end)"' "$EXECUTION_FILE" >> "$GITHUB_OUTPUT" \
+              || echo "::warning::Could not read the agent's result, so the run is recorded with no cost."
+          fi
+      # The labels are set here, not by the agent, so a bad round can't unblock an issue or start a build.
+      - name: Retry the build, or leave the issue for Graham
+        if: always() && steps.guard.outputs.go == 'true'
+        env:
+          AGENT_OUTCOME: ${{ steps.agent.outcome }}
+        run: |
+          set -uo pipefail
+          outcome="$(tr -d '[:space:]' < /tmp/unblock/outcome 2>/dev/null || true)"
+          gh issue edit "$ISSUE" --repo "$REPO" --add-label unblock-tried
+          if [ "$AGENT_OUTCOME" = success ] && [ "$outcome" = resolved ]; then
+            gh issue edit "$ISSUE" --repo "$REPO" --remove-label blocked
+            gh workflow run agent-pipeline.yml --repo "$REPO" --ref main
+            echo "The tech lead resolved #$ISSUE, so the pipeline retries the build."
+          else
+            gh issue edit "$ISSUE" --repo "$REPO" --add-label blocked
+            if [ "$outcome" != needs-graham ]; then
+              gh issue comment "$ISSUE" --repo "$REPO" --body "The tech lead's unblock round ended without a resolution, so this issue waits for Graham. Remove \`blocked\` to retry the build."
+            fi
+            echo "::warning::#$ISSUE still needs Graham. Remove the blocked label to retry the build."
+          fi
+
+  # Spec 002: records the round on the metrics branch, even if it failed, timed out or was cancelled.
+  # Runs main's scripts. See docs/design/002-cost-ledger.md.
+  record:
+    needs: unblock
+    if: always() && needs.unblock.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: read
+      issues: write
+    env:
+      WORKFLOW: unblock
+      AGENT_JOB: unblock
+      # Keep equal to the unblock job's timeout-minutes.
+      TIMEOUT_MINUTES: "20"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund
+        working-directory: site
+      - name: Record the run
+        id: record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_RESULT: ${{ needs.unblock.result }}
+          SUBTYPE: ${{ needs.unblock.outputs.subtype }}
+          COST_USD: ${{ needs.unblock.outputs.cost_usd }}
+          TURNS: ${{ needs.unblock.outputs.turns }}
+          ISSUE: ${{ inputs.issue }}
+        run: node site/scripts/ledger/record.ts
+      - name: Label the spec if it is over budget
+        if: steps.record.outputs.recorded == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPEC: ${{ steps.record.outputs.spec }}
+          LEDGER_DIR: ${{ steps.record.outputs.ledger_dir }}
+        run: node site/scripts/ledger/label-over-budget.ts --spec "$SPEC" --ledger "$LEDGER_DIR"
