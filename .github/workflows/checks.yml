@@ -25,6 +25,9 @@ env:
 jobs:
   site:
     runs-on: ubuntu-latest
+    env:
+      # Spec 002: tests never depend on live metrics-branch data.
+      LEDGER_SKIP_FETCH: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -43,6 +46,9 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    env:
+      # Spec 002: tests never depend on live metrics-branch data.
+      LEDGER_SKIP_FETCH: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

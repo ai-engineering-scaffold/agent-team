@@ -92,9 +92,14 @@ jobs:
       issues: write
       actions: write
       id-token: write
+    outputs:
+      subtype: ${{ steps.result.outputs.subtype }}
+      cost_usd: ${{ steps.result.outputs.cost_usd }}
+      turns: ${{ steps.result.outputs.turns }}
     steps:
       - uses: actions/checkout@v5
-      - uses: anthropics/claude-code-action@v1
+      - id: agent
+        uses: anthropics/claude-code-action@v1
         env:
           # A backgrounded subagent outlives the run: Claude ends its turn and the job exits before the work lands.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -120,10 +125,70 @@ jobs:
           claude_args: |
             --max-turns 40
             --allowedTools "Agent,Read,Grep,Glob,Bash(gh issue create:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh label list:*),Bash(gh label create:*)"
+      # Spec 002: the agent's result for record-plan. Only these three words or numbers leave the job.
+      - name: Report the agent's result
+        id: result
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+        run: |
+          if [ -f "$EXECUTION_FILE" ]; then
+            jq -r 'map(select(.type == "result")) | last // {} |
+              "subtype=\(.subtype | if type == "string" and test("^[a-z_]+$") then . else "" end)",
+              "cost_usd=\(.total_cost_usd | if type == "number" then . else "" end)",
+              "turns=\(.num_turns | if type == "number" then . else "" end)"' "$EXECUTION_FILE" >> "$GITHUB_OUTPUT" \
+              || echo "::warning::Could not read the agent's result, so the run is recorded with no cost."
+          fi
       - name: Start the first build
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run agent-pipeline.yml --repo "${{ github.repository }}" --ref main
+
+  # Spec 002: records the plan run on the metrics branch, even if it failed, timed out or was cancelled.
+  # Runs main's scripts. See docs/design/002-cost-ledger.md.
+  record-plan:
+    needs: [next, plan]
+    if: always() && needs.plan.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: read
+      issues: write
+    env:
+      WORKFLOW: plan
+      AGENT_JOB: plan
+      # Keep equal to the plan job's timeout-minutes.
+      TIMEOUT_MINUTES: "20"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund
+        working-directory: site
+      - name: Record the run
+        id: record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_RESULT: ${{ needs.plan.result }}
+          SUBTYPE: ${{ needs.plan.outputs.subtype }}
+          COST_USD: ${{ needs.plan.outputs.cost_usd }}
+          TURNS: ${{ needs.plan.outputs.turns }}
+          PLAN_SPEC: ${{ needs.next.outputs.spec }}
+        run: node site/scripts/ledger/record.ts
+      - name: Label the spec if it is over budget
+        if: steps.record.outputs.recorded == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPEC: ${{ steps.record.outputs.spec }}
+          LEDGER_DIR: ${{ steps.record.outputs.ledger_dir }}
+        run: node site/scripts/ledger/label-over-budget.ts --spec "$SPEC" --ledger "$LEDGER_DIR"
 
   build:
     needs: next
@@ -137,3 +202,5 @@ jobs:
       pull-requests: write
       issues: write
       id-token: write
+      # agent-build's record job reads job timings; a called workflow only gets what its caller grants.
+      actions: read

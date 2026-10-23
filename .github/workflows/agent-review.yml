@@ -26,11 +26,48 @@ jobs:
       issues: write
       id-token: write
       actions: write
+    outputs:
+      subtype: ${{ steps.result.outputs.subtype }}
+      cost_usd: ${{ steps.result.outputs.cost_usd }}
+      turns: ${{ steps.result.outputs.turns }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: anthropics/claude-code-action@v1
+      # Spec 002 (AC5): the spec's spend so far, worked out by main's scripts in a separate checkout, so the PR
+      # can't change its own line and the agent still reviews the PR's code. The line is numbers only.
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          path: .ledger-tools
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: .ledger-tools/site/package-lock.json
+      - name: Work out the spend line
+        id: spend
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          ledger="$RUNNER_TEMP/ledger"; mkdir -p "$ledger"
+          npm --prefix .ledger-tools/site ci --ignore-scripts --omit=dev --no-audit --no-fund
+          if git -C .ledger-tools fetch --quiet --depth=1 origin metrics; then
+            git -C .ledger-tools archive FETCH_HEAD ledger | tar -x -C "$ledger" || echo "metrics has no ledger folder yet."
+          fi
+          # The same start time the record job writes as `date`, so this run is left out of its own line.
+          started="$(gh api "repos/$REPO/actions/runs/$RUN_ID/attempts/$RUN_ATTEMPT" --jq .run_started_at || true)"
+          node .ledger-tools/site/scripts/ledger/spend-line.ts --ledger "$ledger" --branch "$BRANCH" --pr "$PR" \
+            --started-at "$started" > "$RUNNER_TEMP/spend-line.txt"
+          echo "line=$(head -n 1 "$RUNNER_TEMP/spend-line.txt")" >> "$GITHUB_OUTPUT"
+      - id: agent
+        uses: anthropics/claude-code-action@v1
         env:
           # A backgrounded subagent outlives the run: Claude ends its turn and the job exits before the review lands.
           CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1"
@@ -52,7 +89,8 @@ jobs:
             Run it in the foreground (run_in_background: false) and wait for its result before doing anything else.
             Then, using only these steps:
             1. With the Write tool, save its review to .agent-review/review.md, ending with a line that reads
-               exactly "Verdict: PASS" or "Verdict: CHANGES_REQUESTED".
+               exactly "Verdict: PASS" or "Verdict: CHANGES_REQUESTED". Just above that line, put this spend line
+               exactly as written: ${{ steps.spend.outputs.line || 'Spend so far: not available.' }}
             2. Run `gh pr comment ${{ github.event.pull_request.number }} --body-file .agent-review/review.md` as one
                command on its own, with no pipes, redirects or chained commands.
             3. With the Write tool, write the verdict word alone (PASS or CHANGES_REQUESTED) to .agent-review/verdict.
@@ -60,6 +98,20 @@ jobs:
           claude_args: |
             --max-turns 40
             --allowedTools "Agent,Read,Grep,Glob,Edit(.agent-review/**),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr checks:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+      # Spec 002: the agent's result for the record job. Only these three words or numbers leave the job.
+      - name: Report the agent's result
+        id: result
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.agent.outputs.execution_file }}
+        run: |
+          if [ -f "$EXECUTION_FILE" ]; then
+            jq -r 'map(select(.type == "result")) | last // {} |
+              "subtype=\(.subtype | if type == "string" and test("^[a-z_]+$") then . else "" end)",
+              "cost_usd=\(.total_cost_usd | if type == "number" then . else "" end)",
+              "turns=\(.num_turns | if type == "number" then . else "" end)"' "$EXECUTION_FILE" >> "$GITHUB_OUTPUT" \
+              || echo "::warning::Could not read the agent's result, so the run is recorded with no cost."
+          fi
       - name: Start the engineer on the requested changes
         env:
           GH_TOKEN: ${{ github.token }}
@@ -79,3 +131,50 @@ jobs:
             echo "::error::The reviewer agent requested changes or gave no verdict. See its comment on the PR."
             exit 1
           fi
+
+  # Spec 002: records the review on the metrics branch, even if it failed, timed out or was cancelled by a
+  # newer push. Runs main's scripts, never the PR's.
+  record:
+    needs: agent-review
+    # The agent job's same-repo guard again: if: always() alone would run this, with a write token, on fork PRs.
+    if: always() && github.event.pull_request.head.repo.full_name == github.repository && needs.agent-review.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+      pull-requests: read
+      issues: write
+    env:
+      WORKFLOW: review
+      AGENT_JOB: agent-review
+      # Keep equal to the agent-review job's timeout-minutes.
+      TIMEOUT_MINUTES: "20"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund
+        working-directory: site
+      - name: Record the run
+        id: record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_RESULT: ${{ needs.agent-review.result }}
+          SUBTYPE: ${{ needs.agent-review.outputs.subtype }}
+          COST_USD: ${{ needs.agent-review.outputs.cost_usd }}
+          TURNS: ${{ needs.agent-review.outputs.turns }}
+          PR: ${{ github.event.pull_request.number }}
+        run: node site/scripts/ledger/record.ts
+      - name: Label the spec if it is over budget
+        if: steps.record.outputs.recorded == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SPEC: ${{ steps.record.outputs.spec }}
+          LEDGER_DIR: ${{ steps.record.outputs.ledger_dir }}
+        run: node site/scripts/ledger/label-over-budget.ts --spec "$SPEC" --ledger "$LEDGER_DIR"
