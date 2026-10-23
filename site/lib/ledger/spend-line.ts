@@ -4,12 +4,14 @@
 // Erasable syntax and relative `.ts` imports only, so Node's type stripping can run it too.
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import matter from "gray-matter";
 import { summarize, toMicros, type SpecSummary } from "./load.ts";
 import type { LedgerRecord } from "./record.ts";
 
-// Read only by scripts and at build time, like DECISIONS_DIR.
-export const SPECS_DIR = path.join(process.cwd(), "..", "specs");
+// The `specs/` folder of the checkout this module was loaded from, whatever the working
+// directory, so the review job reads the specs of the tools checkout it runs from.
+export const SPECS_DIR = fileURLToPath(new URL("../../../specs/", import.meta.url));
 
 const SPEC_PATTERN = /^[0-9]{3}$/;
 
@@ -20,8 +22,10 @@ export interface CurrentRun {
   startedAt: string;
 }
 
-// Leaves out the current review run, so a re-run whose earlier attempt was already recorded
-// doesn't count its own cost against the spec.
+// Leaves out any review record of this PR whose `date` is this run's start time, so the line
+// never counts the run that is posting it. The current attempt has no record yet (its record
+// job runs after the review), and GitHub resets `run_started_at` on a re-run, so an earlier
+// attempt usually has a different start time and its cost counts as real spend.
 export function excludeCurrentRun(records: readonly LedgerRecord[], current: CurrentRun): LedgerRecord[] {
   const started = Date.parse(current.startedAt);
   if (Number.isNaN(started)) throw new Error("current run start time is not a valid timestamp");
@@ -68,10 +72,20 @@ export function formatSpendLine(summary: SpecSummary, budgetUsd: number | null):
 
   const budgetMicros = toMicros(budgetUsd);
   const percent = Math.round((totalCostMicros / budgetMicros) * 100);
-  const over = totalCostMicros - budgetMicros;
-  const status = over > 0 ? `${percent}%, over by ${dollars(over)}` : `${percent}%`;
+  // Whole cents, so the line never says "over by $0.00".
+  const overCents = Math.round((totalCostMicros - budgetMicros) / 10_000);
+  const over = overCents * 10_000;
+  const status = overCents > 0 ? `${percent}%, over by ${dollars(over)}` : `${percent}%`;
   return `Spend on spec ${spec} so far: ${spent} of ${dollars(budgetMicros)} budget (${status}) across ${tail}`;
 }
+
+// gray-matter runs `---js` front matter through eval. Spec files are never code, so this
+// engine throws instead and the reader returns null.
+const noCode = {
+  parse: (): never => {
+    throw new Error("code front matter is not allowed");
+  },
+};
 
 // `budget_usd` from `specs/NNN-*.md`. Null when the spec number is not three digits, there is
 // not exactly one matching file, or the field is missing or not a positive number.
@@ -83,7 +97,7 @@ export async function readBudgetUsd(spec: string, specsDir = SPECS_DIR): Promise
     );
     if (files.length !== 1) return null;
     const raw = await readFile(/* turbopackIgnore: true */ path.join(specsDir, files[0]), "utf8");
-    const budget: unknown = matter(raw).data.budget_usd;
+    const budget: unknown = matter(raw, { engines: { js: noCode, javascript: noCode } }).data.budget_usd;
     return typeof budget === "number" && Number.isFinite(budget) && budget > 0 ? budget : null;
   } catch {
     return null;

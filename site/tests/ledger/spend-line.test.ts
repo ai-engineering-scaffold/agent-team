@@ -2,7 +2,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { loadLedger, type SpecSummary } from "../../lib/ledger/load.ts";
 import type { LedgerRecord } from "../../lib/ledger/record.ts";
-import { excludeCurrentRun, formatSpendLine, readBudgetUsd, summaryFor } from "../../lib/ledger/spend-line.ts";
+import { excludeCurrentRun, formatSpendLine, readBudgetUsd, SPECS_DIR, summaryFor } from "../../lib/ledger/spend-line.ts";
 
 const specsFixture = path.join(__dirname, "..", "fixtures", "specs");
 const ledgerFixture = path.join(__dirname, "..", "fixtures", "ledger");
@@ -42,6 +42,18 @@ describe("AC5: the spend line shows spend so far against the spec's budget", () 
   it("shows a spec over budget and by how much", () => {
     expect(formatSpendLine(summary("001", 16_200_000, 12, 0), 15)).toBe(
       "Spend on spec 001 so far: $16.20 of $15.00 budget (108%, over by $1.20) across 12 runs, 0 with no cost recorded.",
+    );
+  });
+
+  it("shows a spec less than a cent over budget as not over", () => {
+    expect(formatSpendLine(summary("002", 15_004_000, 9, 0), 15)).toBe(
+      "Spend on spec 002 so far: $15.00 of $15.00 budget (100%) across 9 runs, 0 with no cost recorded.",
+    );
+  });
+
+  it("shows a spec a cent over budget as over by $0.01", () => {
+    expect(formatSpendLine(summary("002", 15_006_000, 9, 0), 15)).toBe(
+      "Spend on spec 002 so far: $15.01 of $15.00 budget (100%, over by $0.01) across 9 runs, 0 with no cost recorded.",
     );
   });
 
@@ -89,11 +101,11 @@ describe("AC5: the current review run is left out of the total", () => {
   const records = [
     record({ workflow: "build", pr: 40, date: "2026-10-09T09:00:00Z", cost_usd: 2 }),
     record({ date: "2026-10-09T12:00:00Z", cost_usd: 0.5 }),
-    // The current run, already recorded by an earlier attempt.
+    // A review of this PR whose date is the current run's start time.
     record({ date: "2026-10-10T10:00:00Z", cost_usd: 3 }),
   ];
 
-  it("drops only the review of this PR that started at this run's start time", () => {
+  it("drops only a review of this PR whose date is this run's start time", () => {
     const kept = excludeCurrentRun(records, current);
     expect(kept).toHaveLength(2);
     expect(formatSpendLine(summaryFor(kept, "002"), 15)).toBe(
@@ -119,6 +131,10 @@ describe("AC5: the current review run is left out of the total", () => {
 });
 
 describe("AC5: budget_usd is read from the spec's frontmatter", () => {
+  it("reads the repo's specs folder by default, whatever the working directory", () => {
+    expect(SPECS_DIR).toBe(path.join(__dirname, "..", "..", "..", "specs") + path.sep);
+  });
+
   it("reads the budget of a spec", async () => {
     expect(await readBudgetUsd("101", specsFixture)).toBe(12.5);
   });
@@ -127,6 +143,10 @@ describe("AC5: budget_usd is read from the spec's frontmatter", () => {
     expect(await readBudgetUsd("102", specsFixture)).toBeNull();
     expect(await readBudgetUsd("103", specsFixture)).toBeNull();
     expect(await readBudgetUsd("105", specsFixture)).toBeNull();
+  });
+
+  it("returns null for JavaScript front matter instead of running it", async () => {
+    expect(await readBudgetUsd("106", specsFixture)).toBeNull();
   });
 
   it("returns null when no file, or more than one, matches the spec", async () => {
