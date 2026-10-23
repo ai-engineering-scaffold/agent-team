@@ -1,0 +1,11 @@
+{
+  "date": "2026-10-23T23:41:20Z",
+  "workflow": "review",
+  "spec": "005",
+  "issue": null,
+  "pr": 55,
+  "cost_usd": 0.3706109000000001,
+  "turns": 5,
+  "duration_s": 105,
+  "outcome": "success"
+}
