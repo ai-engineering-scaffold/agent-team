@@ -24,11 +24,11 @@
 html,
 body {
   background: var(--colour-cream);
+  color: var(--colour-ink);
 }
 
 body {
   margin: 0;
-  color: var(--colour-ink);
   font-family: system-ui, sans-serif;
   line-height: 1.6;
 }
