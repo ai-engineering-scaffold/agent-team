@@ -47,12 +47,68 @@ test("AC6: the main navigation links to /how-we-work from any page", async ({ pa
   }
 });
 
-test("AC7: at 375 px wide, roles are readable without horizontal scrolling", async ({ page }) => {
+test("AC7: at 375 px wide, roles and gates are readable without horizontal scrolling", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto("/how-we-work");
   const entries = page.getByRole("list", { name: "Agent roles" }).getByRole("listitem");
   await expect(entries).toHaveCount(agentFiles.length);
   await expect(entries.last()).toBeVisible();
+  const gates = page.getByRole("region", { name: "Gates" }).getByRole("list", { name: "Gates" }).getByRole("listitem");
+  await expect(gates).toHaveCount(5);
+  await expect(gates.last()).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
+});
+
+// The approvers as ADR 0002 states them.
+const GATE_APPROVERS: Array<{ name: string; approver: string }> = [
+  { name: "Spec", approver: "Graham approves the spec." },
+  { name: "Design", approver: "Graham approves the design, only when the tech lead flags design-needed." },
+  { name: "CI", approver: "Lint, types, unit tests, build and Playwright pass as required checks." },
+  { name: "Review", approver: "The reviewer agent finds no blocking issues." },
+  { name: "Merge", approver: "Graham merges, except for low-risk changes." },
+];
+
+const ADRS = {
+  "ADR 0002": { href: "/decisions/0002-six-agent-roles-and-five-gates", title: "Six agent roles and five review gates" },
+  "ADR 0006": { href: "/decisions/0006-agents-may-merge-low-risk-changes", title: "Agents may merge low-risk changes" },
+};
+
+test("AC4: the gates section lists Spec, Design, CI, Review, Merge in order, each with its approver", async ({ page }) => {
+  await page.goto("/how-we-work");
+  const section = page.getByRole("region", { name: "Gates" });
+  await expect(section.getByRole("heading", { level: 2, name: "Gates" })).toBeVisible();
+
+  const gates = section.getByRole("list", { name: "Gates" }).getByRole("listitem");
+  await expect(gates).toHaveCount(GATE_APPROVERS.length);
+
+  for (const [i, { name, approver }] of GATE_APPROVERS.entries()) {
+    const gate = gates.nth(i);
+    await expect(gate.getByRole("heading", { name, exact: true })).toBeVisible();
+    // The approver text is the gate's first paragraph, apart from the ADR links.
+    await expect(gate.getByRole("paragraph").first()).toHaveText(approver);
+  }
+});
+
+test("AC5: every gate links to ADR 0002, and the Merge gate also links to ADR 0006", async ({ page }) => {
+  await page.goto("/how-we-work");
+  const gates = page.getByRole("region", { name: "Gates" }).getByRole("list", { name: "Gates" }).getByRole("listitem");
+  await expect(gates).toHaveCount(GATE_APPROVERS.length);
+
+  for (const [i, { name }] of GATE_APPROVERS.entries()) {
+    const linkNames = name === "Merge" ? ["ADR 0002", "ADR 0006"] : ["ADR 0002"];
+    await page.goto("/how-we-work");
+    await expect(gates.nth(i).getByRole("link")).toHaveCount(linkNames.length);
+
+    // Follow each link and check it opens that ADR, not a 404 page.
+    for (const linkName of linkNames as Array<keyof typeof ADRS>) {
+      const { href, title } = ADRS[linkName];
+      await page.goto("/how-we-work");
+      const link = gates.nth(i).getByRole("link", { name: linkName, exact: true });
+      await expect(link).toHaveAttribute("href", href);
+      await link.click();
+      await expect(page).toHaveURL(new RegExp(`${href}$`));
+      await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+    }
+  }
 });
