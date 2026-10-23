@@ -54,16 +54,15 @@ test("AC7: at 375 px wide, roles and gates are readable without horizontal scrol
   await expect(entries).toHaveCount(agentFiles.length);
   await expect(entries.last()).toBeVisible();
   const gates = page.getByRole("region", { name: "Gates" }).getByRole("list", { name: "Gates" }).getByRole("listitem");
-  await expect(gates).toHaveCount(5);
+  await expect(gates).toHaveCount(GATE_APPROVERS.length);
   await expect(gates.last()).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
-// The approvers as ADR 0002 states them.
+// The approvers as ADR 0002 states them, without the Design gate that ADR 0012 removed.
 const GATE_APPROVERS: Array<{ name: string; approver: string }> = [
-  { name: "Spec", approver: "Graham approves the spec." },
-  { name: "Design", approver: "Graham approves the design, only when the tech lead flags design-needed." },
+  { name: "Spec", approver: "Graham approves the spec, including his design input." },
   { name: "CI", approver: "Lint, types, unit tests, build and Playwright pass as required checks." },
   { name: "Review", approver: "The reviewer agent finds no blocking issues." },
   { name: "Merge", approver: "Graham merges, except for low-risk changes." },
@@ -74,7 +73,7 @@ const ADRS = {
   "ADR 0006": { href: "/decisions/0006-agents-may-merge-low-risk-changes", title: "Agents may merge low-risk changes" },
 };
 
-test("AC4: the gates section lists Spec, Design, CI, Review, Merge in order, each with its approver", async ({ page }) => {
+test("AC4: the gates section lists Spec, CI, Review, Merge in order, each with its approver", async ({ page }) => {
   await page.goto("/how-we-work");
   const section = page.getByRole("region", { name: "Gates" });
   await expect(section.getByRole("heading", { level: 2, name: "Gates" })).toBeVisible();

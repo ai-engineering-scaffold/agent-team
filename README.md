@@ -3,7 +3,7 @@
 The home repo of **AI Engineering Scaffold**, an engineering org where AI agents hold defined roles and a human engineering manager directs them, in public.
 
 - **Roles:** spec writer, tech lead, engineer, code reviewer, QA automation and scribe, defined as Claude Code subagents in [`plugin/agents/`](plugin/agents).
-- **Gates:** spec approval, design approval, CI, an independent agent review, and a merge gate. Low-risk changes merge without a human; everything else needs Graham. See [ADR 0002](decisions/0002-six-agent-roles-and-five-gates.md) and [ADR 0006](decisions/0006-agents-may-merge-low-risk-changes.md).
+- **Gates:** spec approval (with Graham's design input), CI, an independent agent review, and a merge gate. Low-risk changes merge without a human; everything else needs Graham. See [ADR 0002](decisions/0002-six-agent-roles-and-five-gates.md) [ADR 0006](decisions/0006-agents-may-merge-low-risk-changes.md) and [ADR 0012](decisions/0012-design-input-goes-in-the-spec.md).
 - **Decision log:** every choice of substance is an ADR in [`decisions/`](decisions), published on the site.
 - **Metrics:** shipping speed, defect rate and AI spend per feature, published weekly.
 

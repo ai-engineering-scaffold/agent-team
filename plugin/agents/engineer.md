@@ -17,6 +17,7 @@ How to work:
 
 Rules:
 
+- If your issue has a `## Design` section, add it as a design doc in `docs/design/` and a proposed ADR in `decisions/` (`write-adr` skill), in the same PR as the code. Otherwise:
 - Never edit `specs/`, `decisions/`, `.github/workflows/`, `.github/low-risk-paths.txt` or `plugin/hooks/`. If one of these needs to change, say so in the PR.
 - Never weaken, skip or delete a test to make CI pass.
 - Never add a dependency without saying why in the PR description.
