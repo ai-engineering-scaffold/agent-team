@@ -3,7 +3,7 @@
 # lowest-numbered open issue of an approved spec. One build runs at a time. See decisions/0008.
 #
 # Pushes to main only come from merged PRs (the ruleset requires them), so every run follows a gate
-# Graham passed: a merged spec (gate 1), a merged design (gate 2), or a merged build.
+# Graham passed: a merged spec (gate 1) or a merged build.
 name: agent-pipeline
 
 on:
@@ -70,7 +70,7 @@ jobs:
             num="$(jq -r .number <<<"$first")"
             labels="$(jq -r '[.labels[].name] | join(",")' <<<"$first")"
 
-            if [[ ",$labels," == *",design-needed,"* ]]; then echo "#$num waits on a design approval (gate 2)."; continue; fi
+            if [[ ",$labels," == *",design-needed,"* ]]; then echo "#$num is labelled design-needed, which ADR 0012 retired; remove the label to build it."; continue; fi
             if [[ ",$labels," == *",blocked,"* ]]; then echo "#$num is blocked and needs Graham."; continue; fi
             if jq -e --arg n "$num" 'any(.[]; test("/issue-" + $n + "-"))' <<<"$branches" >/dev/null; then
               echo "#$num already has an open or merged PR, so a build is in flight."
@@ -113,8 +113,10 @@ jobs:
             slice-issues skill. Run it in the foreground and wait for its result.
             Every issue gets the label spec-${{ needs.next.outputs.spec }}; create the label first if it does not exist.
             Do not use the agent:build label: builds start automatically.
-            If the spec needs a real technical choice, do not write files. Create the first issue with the
-            label design-needed, describing the choice and the options, so Graham can approve a design first.
+            Do not write files. Follow the spec's Design input section. If the spec still needs a real technical
+            choice, make it and put the options, the choice and why in a Design section of the first issue, whose
+            PR adds the design doc and a proposed ADR. Never use the design-needed label: there is no design gate
+            (ADR 0012).
           claude_args: |
             --max-turns 40
             --allowedTools "Agent,Read,Grep,Glob,Bash(gh issue create:*),Bash(gh issue list:*),Bash(gh issue view:*),Bash(gh label list:*),Bash(gh label create:*)"

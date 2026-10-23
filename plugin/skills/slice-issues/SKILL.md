@@ -30,7 +30,7 @@ Two or three sentences.
 - [ ] Unit tests cover the new logic
 ```
 
-- Labels: `spec-NNN`, plus `design-needed` if Graham must approve a design first. Builds start automatically after each merge to main, in issue-number order (ADR 0008), so create issues in the order they should be built.
+- Labels: `spec-NNN`. Never `design-needed`: there is no design gate (ADR 0012). A real technical choice goes in a `## Design` section of the first issue (options, choice, why), and that issue's PR adds the design doc and a proposed ADR. Builds start automatically after each merge to main, in issue-number order (ADR 0008), so create issues in the order they should be built.
 
 ## Order
 

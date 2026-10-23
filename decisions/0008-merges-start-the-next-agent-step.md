@@ -20,7 +20,7 @@ Week 1 started a build when Graham added the `agent:build` label to an issue. Th
 Option 2. The `agent-pipeline` workflow runs on every push to main. Pushes only come from merged PRs, so each run follows a gate Graham passed. It takes the first matching step:
 
 - An approved spec with no issues gets planned. The tech lead slices it, then the first build starts.
-- Otherwise, the lowest-numbered open issue of an approved spec gets built, unless it is labelled `design-needed` (waiting on gate 2) or `blocked`, or a PR for it is already open.
+- Otherwise, the lowest-numbered open issue of an approved spec gets built, unless it is labelled `blocked` (or `design-needed`, retired by ADR 0012), or a PR for it is already open.
 
 Build branches are named `spec-NNN/issue-N-short-name`, so the pipeline can tell which issue a PR builds. One build runs at a time. A build that ends without a PR labels its issue `blocked`, so the pipeline doesn't retry it on every merge.
 

@@ -24,14 +24,9 @@ async function RoleList() {
 const ADR_0002 = "/decisions/0002-six-agent-roles-and-five-gates";
 const ADR_0006 = "/decisions/0006-agents-may-merge-low-risk-changes";
 
-// Gates change only through an ADR, so they are stated here (ADR 0002).
+// Gates change only through an ADR, so they are stated here (ADR 0002, with Design removed by ADR 0012).
 const GATES = [
-  { name: "Spec", approver: "Graham approves the spec.", extra: false },
-  {
-    name: "Design",
-    approver: "Graham approves the design, only when the tech lead flags design-needed.",
-    extra: false,
-  },
+  { name: "Spec", approver: "Graham approves the spec, including his design input.", extra: false },
   {
     name: "CI",
     approver: "Lint, types, unit tests, build and Playwright pass as required checks.",
@@ -74,7 +69,7 @@ export default function HowWeWorkPage() {
       </section>
       <section aria-labelledby="gates-heading">
         <h2 id="gates-heading">Gates</h2>
-        <p>Work passes five gates, in order, before it ships.</p>
+        <p>Work passes four gates, in order, before it ships.</p>
         <GateList />
       </section>
     </>

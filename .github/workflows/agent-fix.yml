@@ -90,7 +90,7 @@ jobs:
             Use the scaffold-org:engineer subagent, in the foreground, to address the review:
             - Fix every blocking finding.
             - Apply a suggestion only if it is small and stays within the files this PR already changes.
-            - Never skip, weaken or delete a test, and never edit `.github/`, `specs/`, `decisions/` or `plugin/hooks/`.
+            - Never skip, weaken or delete a test, and never edit `.github/`, `specs/`, `plugin/hooks/` or an ADR that already exists on main.
             - Run `npm --prefix site run check`, then `npm --prefix site run build && npm --prefix site run test:e2e`,
               and fix anything they report.
             - Commit with a subject that starts "Address agent review: ", and push to the branch. Never force-push.

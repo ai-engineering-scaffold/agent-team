@@ -35,6 +35,10 @@ Who has the problem, and what it costs them today. Two or three sentences.
 - **AC1.** Given <state>, when <action>, then <observable result>.
 - **AC2.** ...
 
+## Design input
+
+- Optional. Graham's constraints on how it is built (a library to use or avoid, where data lives, a shape to follow). The tech lead treats these as decided. Leave the section out if there are none.
+
 ## Non-goals
 
 - What this spec deliberately does not do.
@@ -52,4 +56,5 @@ How we will know after release that it worked.
 
 - Every criterion is observable in a browser or a test. "Fast" is not a criterion; "the list renders within 1 second on the preview deploy" is.
 - Number criteria AC1, AC2 and so on. Issues, tests and reviews refer to them by number.
+- Ask Graham for design input while writing the spec. There is no later design approval (ADR 0012), so this is where he steers how it is built.
 - Keep it under one page. If it is longer, it is two specs.
