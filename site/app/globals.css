@@ -578,3 +578,215 @@ td[align="center"] {
     text-align: left;
   }
 }
+
+/*
+ * The homepage "How work flows" figure (spec 006; decisions/0018). Six step
+ * cards and three loop cards, each an opaque canvas card with fg or fg-muted
+ * text and a 1px border, so no text sits on a wash (AC6). The watercolor
+ * washes are aria-hidden sibling layers that show past each card's edges, and
+ * the paper grain is on .flow-paper, behind the cards and outside them. The
+ * wash tints live only inside the images in public/workflow/, made by
+ * scripts/workflow-washes/generate.ts; this CSS uses tokens only. Text in the
+ * figure is never smaller than 0.875rem (AC4).
+ */
+.flow {
+  margin: var(--space-6) 0 0;
+}
+
+.flow-caption h2 {
+  margin: 0 0 var(--space-2);
+}
+
+.flow-caption p {
+  color: var(--colour-fg-muted);
+}
+
+.flow-paper {
+  padding: var(--space-5);
+  border-radius: var(--radius);
+  background-color: var(--colour-canvas);
+  background-image: url("/workflow/paper.webp");
+  background-repeat: repeat;
+  background-size: 160px 160px;
+}
+
+.flow ol,
+.flow ul {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.flow .flow-steps {
+  gap: var(--space-6);
+}
+
+.flow .flow-loops {
+  gap: var(--space-5);
+  margin-top: var(--space-7);
+}
+
+.flow-step,
+.flow-loop {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  margin: 0;
+}
+
+.flow-card {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  background: var(--colour-canvas);
+  color: var(--colour-fg);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.flow-card p {
+  max-width: none;
+  margin: 0;
+}
+
+.flow-card p + p {
+  margin-top: var(--space-2);
+}
+
+.flow-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-1);
+  font-size: 1rem;
+  line-height: 1.25;
+  color: var(--colour-fg);
+}
+
+.flow-owner,
+.flow-label {
+  color: var(--colour-fg-muted);
+}
+
+.flow-label {
+  font-weight: 600;
+}
+
+/*
+ * The wash: an aria-hidden layer behind its card that shows past the card's
+ * edges, a little at the top left and more at the bottom right, as if painted
+ * slightly off register. It stays inside .flow-paper's padding.
+ */
+.flow-wash {
+  position: absolute;
+  inset: calc(-1 * var(--space-2)) calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) calc(-1 * var(--space-2));
+  z-index: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  pointer-events: none;
+}
+
+.flow-wash-spec {
+  background-image: url("/workflow/wash-spec.webp");
+}
+
+.flow-wash-plan {
+  background-image: url("/workflow/wash-plan.webp");
+}
+
+.flow-wash-build {
+  background-image: url("/workflow/wash-build.webp");
+}
+
+.flow-wash-ci {
+  background-image: url("/workflow/wash-ci.webp");
+}
+
+.flow-wash-review {
+  background-image: url("/workflow/wash-review.webp");
+}
+
+.flow-wash-merge {
+  background-image: url("/workflow/wash-merge.webp");
+}
+
+.flow-wash-loop {
+  background-image: url("/workflow/wash-loop.webp");
+}
+
+/* Connectors: fg-muted strokes, pointing down in the column layout and right in a row. */
+.flow-arrow {
+  position: absolute;
+  z-index: 1;
+  top: 100%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: var(--space-6);
+  transform: translateX(-50%);
+}
+
+.flow-arrow svg {
+  transform: rotate(90deg);
+}
+
+.flow-arrow svg,
+.flow-loop-mark {
+  flex: none;
+  fill: none;
+  stroke: var(--colour-fg-muted);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* From 40rem: the steps in a 3 + 3 grid and the loops in a row. */
+@media (width >= 40rem) {
+  .flow .flow-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-6) var(--space-5);
+  }
+
+  .flow .flow-loops {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .flow-arrow {
+    top: 50%;
+    left: 100%;
+    width: var(--space-5);
+    height: 12px;
+    transform: translateY(-50%);
+  }
+
+  .flow-arrow svg {
+    transform: none;
+  }
+
+  /* The third card ends a row here, so its connector would point off the grid. */
+  .flow-step:nth-child(3) .flow-arrow {
+    display: none;
+  }
+}
+
+/* From 64rem: all six steps in one row. */
+@media (width >= 64rem) {
+  .flow .flow-steps {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .flow-step:nth-child(3) .flow-arrow {
+    display: flex;
+  }
+}

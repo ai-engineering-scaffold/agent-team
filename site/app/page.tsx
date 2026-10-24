@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { listDecisions } from "@/lib/decisions";
+import WorkflowDiagram from "./_components/workflow-diagram";
 
 async function LatestDecisions() {
   const decisions = (await listDecisions()).slice(0, 3);
@@ -24,6 +25,7 @@ export default function Home() {
         Graham acts as the engineering manager. Agents with defined roles write the specs, build, review and test the
         work. Every decision, review and dollar spent is on the record.
       </p>
+      <WorkflowDiagram />
       <h2>Latest decisions</h2>
       <LatestDecisions />
       <p>
