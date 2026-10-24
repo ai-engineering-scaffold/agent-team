@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Fragment } from "react";
+import { GATES, adrLabel } from "@/lib/gates";
 import { listRoles } from "@/lib/roles";
 
 export const metadata: Metadata = { title: "How we work" };
@@ -21,36 +23,21 @@ async function RoleList() {
   );
 }
 
-const ADR_0002 = "/decisions/0002-six-agent-roles-and-five-gates";
-const ADR_0006 = "/decisions/0006-agents-may-merge-low-risk-changes";
-
-// Gates change only through an ADR, so they are stated here (ADR 0002, with Design removed by ADR 0012).
-const GATES = [
-  { name: "Spec", approver: "Graham approves the spec, including his design input.", extra: false },
-  {
-    name: "CI",
-    approver: "Lint, types, unit tests, build and Playwright pass as required checks.",
-    extra: false,
-  },
-  { name: "Review", approver: "The reviewer agent finds no blocking issues.", extra: false },
-  { name: "Merge", approver: "Graham merges, except for low-risk changes.", extra: true },
-];
-
+// Gates change only through an ADR. They live in lib/gates.ts, which the homepage diagram shares.
 function GateList() {
   return (
     <ol aria-label="Gates">
       {GATES.map((g) => (
         <li key={g.name}>
           <h3>{g.name}</h3>
-          <p>{g.approver}</p>
+          <p>{g.sentence}</p>
           <p>
-            <Link href={ADR_0002}>ADR 0002</Link>
-            {g.extra && (
-              <>
-                {" "}
-                <Link href={ADR_0006}>ADR 0006</Link>
-              </>
-            )}
+            {g.adrs.map((adr, i) => (
+              <Fragment key={adr.slug}>
+                {i > 0 && " "}
+                <Link href={`/decisions/${adr.slug}`}>{adrLabel(adr)}</Link>
+              </Fragment>
+            ))}
           </p>
         </li>
       ))}
