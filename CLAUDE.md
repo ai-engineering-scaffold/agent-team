@@ -27,7 +27,7 @@ The roles, skills and hooks live in `plugin/` (the `scaffold-org` plugin). Decis
 
 - TypeScript everywhere. Next.js App Router in `site/`; the site is fully static, built from Markdown in this repo.
 - Read `site/AGENTS.md` before changing Next.js code: this Next.js version differs from older training data.
-- Visual design follows the theme in ADR 0014: use its colour tokens and fonts only. A new colour or font needs a new ADR.
+- Visual design follows the theme in ADR 0017 (which supersedes ADR 0014's palette and fonts): use its colour tokens and fonts only. A new colour or font needs a new ADR.
 - Locate elements in tests by role and visible text, never by CSS class.
 - Branches: `spec-NNN/short-name` for spec work, `chore/short-name` otherwise.
 - Commit messages: imperative, under 72 characters in the subject.
