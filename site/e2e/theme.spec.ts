@@ -65,11 +65,11 @@ for (const route of routes) {
     expect(offenders(await collectComputedColours(page))).toEqual([]);
   });
 
-  test("AC1: " + route + " keeps the cream page and token colours when the system prefers dark", async ({ page }) => {
+  test("AC1: " + route + " keeps the canvas page and token colours when the system prefers dark", async ({ page }) => {
     await page.emulateMedia({ colorScheme: "dark" });
     await page.goto(route);
     const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    expect(toHex(bg)).toBe(tokenHex("cream"));
+    expect(toHex(bg)).toBe(tokenHex("canvas"));
     expect(offenders(await collectComputedColours(page))).toEqual([]);
   });
 

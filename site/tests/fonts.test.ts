@@ -4,8 +4,9 @@ import path from "node:path";
 import { brotliDecompressSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 
-// Spec 004 AC3 (decisions/0014): the heading and body fonts are self-hosted from the fontsource
-// packages through next/font/local in app/fonts.ts. The browser side of AC3 is in e2e/theme.spec.ts.
+// Spec 005 AC1 (decisions/0017, superseding spec 004 AC3's fonts): Inter for headings and body,
+// and JetBrains Mono for the monospace accent, self-hosted from the fontsource packages through
+// next/font/local in app/fonts.ts. The browser side is in e2e/theme.spec.ts.
 
 const siteRoot = path.join(__dirname, "..");
 const appDir = path.join(siteRoot, "app");
@@ -185,13 +186,13 @@ function singleSubstitutions(gsub: Buffer, feature: string): Map<number, number>
 }
 
 describe("app/fonts.ts", () => {
-  it("defines a heading font and a body font", () => {
-    expect([...sources.keys()].sort()).toEqual(["--font-body", "--font-heading"]);
+  it("defines a body font and a monospace font, and nothing else", () => {
+    expect([...sources.keys()].sort()).toEqual(["--font-body", "--font-mono"]);
   });
 
   it.each([
-    ["--font-heading", "@fontsource-variable/source-serif-4", "source-serif-4-latin-wght-normal.woff2"],
     ["--font-body", "@fontsource-variable/inter", "inter-latin-wght-normal.woff2"],
+    ["--font-mono", "@fontsource-variable/jetbrains-mono", "jetbrains-mono-latin-wght-normal.woff2"],
   ])("loads %s from %s's latin wght normal file, licensed OFL-1.1", (variable, pkg, fileName) => {
     const file = sources.get(variable)!;
     expect(path.basename(file)).toBe(fileName);
@@ -201,11 +202,11 @@ describe("app/fonts.ts", () => {
     expect(readFileSync(file).toString("latin1", 0, 4)).toBe("wOF2");
   });
 
-  it("lists both font packages as site dependencies", async () => {
+  it("lists exactly the two font packages as site dependencies, without Source Serif 4", async () => {
     const pkg = JSON.parse(await readFile(path.join(siteRoot, "package.json"), "utf8"));
-    expect(Object.keys(pkg.dependencies)).toEqual(
-      expect.arrayContaining(["@fontsource-variable/inter", "@fontsource-variable/source-serif-4"]),
-    );
+    const fontPackages = Object.keys(pkg.dependencies).filter((name) => name.startsWith("@fontsource"));
+    expect(fontPackages.sort()).toEqual(["@fontsource-variable/inter", "@fontsource-variable/jetbrains-mono"]);
+    expect(Object.keys(pkg.devDependencies ?? {})).not.toContain("@fontsource-variable/source-serif-4");
   });
 });
 
@@ -219,21 +220,19 @@ describe("globals.css", () => {
     }
   };
 
-  it("sets body text in the body font and h1 to h6 in the heading font", () => {
+  it("sets body text and h1 to h6 in the body font (Inter)", () => {
     expect(fontFamilyOf("body")).toBe("var(--font-body)");
-    expect(fontFamilyOf("h1,h2,h3,h4,h5,h6")).toBe("var(--font-heading)");
+    expect(fontFamilyOf("h1,h2,h3,h4,h5,h6")).toBe("var(--font-body)");
   });
 
-  it("keeps code on the system monospace stack", () => {
-    expect(fontFamilyOf("code,kbd,pre,samp")).toMatch(/monospace$/);
-    expect(fontFamilyOf("code,kbd,pre,samp")).not.toMatch(/--font-/);
+  it("sets code and the .mono accent in the monospace web font, not a system stack", () => {
+    expect(fontFamilyOf("code,kbd,pre,samp,.mono")).toBe("var(--font-mono)");
   });
 
-  it("names no font family outside the next/font variables and the monospace stack", () => {
+  it("names no font family outside the two next/font variables", () => {
     const families = [...css.matchAll(/font-family:\s*([^;]+);/g)].map((m) => m[1].trim());
-    expect(families.sort()).toEqual(
-      ["var(--font-body)", "var(--font-heading)", fontFamilyOf("code,kbd,pre,samp")].sort(),
-    );
+    expect(families.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(families)).toEqual(new Set(["var(--font-body)", "var(--font-mono)"]));
   });
 });
 

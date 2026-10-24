@@ -88,7 +88,7 @@ test("AC4: the current tab keeps its fill and weight when hovered", async ({ pag
 test("AC4: keyboard focus gives every tab a visible outline of at least 2px and 3:1", async ({ page }) => {
   await page.goto("/");
   const headerBg = toHex(await page.locator("header").evaluate((el) => getComputedStyle(el).backgroundColor));
-  expect(headerBg).toBe(tokenHex("white"));
+  expect(headerBg).toBe(tokenHex("canvas"));
   for (const { name } of tabs) {
     const link = nav(page).getByRole("link", { name });
     let focused = false;

@@ -9,7 +9,6 @@ import {
   EMPTY_MESSAGE,
   formatBudget,
   formatSpend,
-  formatUtc,
   formatWeekSpend,
   metricsPageState,
   newestRun,
@@ -21,6 +20,7 @@ import {
   WITHIN_BUDGET,
 } from "../lib/metrics.ts";
 import { listSpecs, type SpecInfo } from "../lib/specs.ts";
+import { formatDateTime } from "../lib/dates.ts";
 
 // The ledger the e2e build copies into `.ledger/` (see its README.txt).
 const e2eFixture = path.join(__dirname, "..", "e2e", "fixtures", "ledger");
@@ -74,10 +74,13 @@ describe("AC6: the page states when its newest run was", () => {
     expect(newestRun([])).toBeNull();
   });
 
+  // Rewritten for spec 005 AC4: the newest run reads "Oct 21, 2026, 14:05 UTC".
   it("AC6: the newest run is shown as a UTC date and time", () => {
-    expect(formatUtc("2026-10-21T14:05:00Z")).toBe("2026-10-21 14:05 UTC");
-    expect(formatUtc("2026-10-21T23:59:59.900Z")).toBe("2026-10-21 23:59 UTC");
-    expect(() => formatUtc("not a date")).toThrow(/invalid timestamp/);
+    expect(formatDateTime("2026-10-21T14:05:00Z")).toBe("Oct 21, 2026, 14:05 UTC");
+    expect(formatDateTime("2026-10-21T23:59:59.900Z")).toBe("Oct 21, 2026, 23:59 UTC");
+    // An offset is converted to UTC, including across midnight.
+    expect(formatDateTime("2026-10-22T01:30:00+03:00")).toBe("Oct 21, 2026, 22:30 UTC");
+    expect(() => formatDateTime("not a date")).toThrow(/invalid date/);
   });
 });
 

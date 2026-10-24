@@ -34,14 +34,6 @@ export function metricsPageState(ledger: Pick<Ledger, "available" | "records">):
   return { kind: "ready", newestRun: newest };
 }
 
-// "2026-10-21 14:05 UTC". Always UTC, whatever the build machine's time zone.
-export function formatUtc(iso: string): string {
-  const ms = Date.parse(iso);
-  if (Number.isNaN(ms)) throw new Error(`invalid timestamp: ${iso}`);
-  const text = new Date(ms).toISOString();
-  return `${text.slice(0, 10)} ${text.slice(11, 16)} UTC`;
-}
-
 export const NOT_RECORDED = "Not recorded";
 export const OVER_BUDGET = "Over budget";
 export const WITHIN_BUDGET = "Within budget";

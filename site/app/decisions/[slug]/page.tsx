@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Badge from "@/app/_components/badge";
+import DateTime from "@/app/_components/date-time";
 import { getDecision, listDecisions } from "@/lib/decisions";
 import { renderAdrBody } from "@/lib/markdown";
 
@@ -24,16 +26,18 @@ export default async function DecisionPage({ params }: PageProps<"/decisions/[sl
 
   return (
     <article>
-      <p>ADR {String(decision.number).padStart(4, "0")}</p>
+      <p className="eyebrow mono">ADR {String(decision.number).padStart(4, "0")}</p>
       <h1>{decision.title}</h1>
-      <dl>
+      <dl className="adr-meta">
         <dt>Status</dt>
         <dd>
-          {decision.status}
+          <Badge status={decision.status} />
           {decision.supersededBy ? `, superseded by ADR ${String(decision.supersededBy).padStart(4, "0")}` : null}
         </dd>
         <dt>Date</dt>
-        <dd>{decision.date}</dd>
+        <dd>
+          <DateTime iso={decision.date} />
+        </dd>
         <dt>Decided by</dt>
         <dd>{decision.decidedBy}</dd>
       </dl>
