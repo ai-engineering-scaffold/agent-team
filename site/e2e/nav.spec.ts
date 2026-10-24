@@ -26,8 +26,27 @@ function look(link: Locator) {
       background: cs.backgroundColor,
       border: cs.borderTopWidth + " " + cs.borderTopStyle + " " + cs.borderTopColor,
       decoration: cs.textDecorationLine,
+      // Spec 005: the current tab has a 2px bar (the ::after pseudo-element) in the highlight token.
+      bar: (() => {
+        const after = getComputedStyle(el, "::after");
+        return {
+          shown: after.content !== "none" && after.display !== "none",
+          height: parseFloat(after.height),
+          background: after.backgroundColor,
+        };
+      })(),
     };
   });
+}
+
+/** The current tab differs by weight and by a highlight bar that meets 3:1 on the canvas; others have no bar. */
+function expectCurrentLook(a: Awaited<ReturnType<typeof look>>, b: Awaited<ReturnType<typeof look>>) {
+  expect(a.fontWeight).not.toBe(b.fontWeight);
+  expect(b.bar.shown, "a non-current tab has no bar").toBe(false);
+  expect(a.bar.shown, "the current tab has a bar").toBe(true);
+  expect(a.bar.height).toBeGreaterThanOrEqual(2);
+  expect(toHex(a.bar.background)).toBe(tokenHex("highlight"));
+  expect(contrastRatio(toHex(a.bar.background), tokenHex("canvas"))).toBeGreaterThanOrEqual(3);
 }
 
 for (const { name, path } of tabs) {
@@ -42,8 +61,7 @@ for (const { name, path } of tabs) {
     await expect(other).not.toHaveAttribute("aria-current", /.*/);
     const a = await look(current);
     const b = await look(other);
-    expect(a.fontWeight).not.toBe(b.fontWeight);
-    expect(a.background !== b.background || a.border !== b.border).toBe(true);
+    expectCurrentLook(a, b);
   });
 }
 
@@ -54,8 +72,7 @@ test("AC4: on an ADR page the Decisions tab is marked as the current section", a
   await expect(nav(page).locator("a[aria-current]")).toHaveCount(1);
   const other = await look(nav(page).getByRole("link", { name: "Metrics" }));
   const section = await look(decisions);
-  expect(section.fontWeight).not.toBe(other.fontWeight);
-  expect(section.background).not.toBe(other.background);
+  expectCurrentLook(section, other);
 });
 
 test("AC4: the home page has no current tab", async ({ page }) => {
@@ -74,6 +91,25 @@ test("AC4: hovering a tab changes its background or text decoration", async ({ p
   expect(after.background !== before.background || after.decoration !== before.decoration).toBe(true);
 });
 
+test("AC8: hovering the site name and a content link changes their text decoration", async ({ page, isMobile }) => {
+  test.skip(!!isMobile, "Hover needs a pointer; the desktop project covers it.");
+  await page.goto("/decisions");
+  const deco = (link: Locator) =>
+    link.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return cs.textDecorationLine + " " + cs.textDecorationThickness + " " + cs.backgroundColor;
+    });
+  for (const link of [
+    page.getByRole("link", { name: "AI Engineering Scaffold" }).first(),
+    page.getByRole("table", { name: "Decision log" }).getByRole("link").first(),
+    page.getByRole("contentinfo").getByRole("link", { name: "Contact us" }),
+  ]) {
+    const before = await deco(link);
+    await link.hover();
+    expect(await deco(link), "hover changes the link's look").not.toBe(before);
+  }
+});
+
 test("AC4: the current tab keeps its fill and weight when hovered", async ({ page, isMobile }) => {
   test.skip(!!isMobile, "Hover needs a pointer; the desktop project covers it.");
   await page.goto("/metrics");
@@ -83,6 +119,7 @@ test("AC4: the current tab keeps its fill and weight when hovered", async ({ pag
   const after = await look(link);
   expect(after.background).toBe(before.background);
   expect(after.fontWeight).toBe(before.fontWeight);
+  expect(after.bar).toEqual(before.bar);
 });
 
 test("AC4: keyboard focus gives every tab a visible outline of at least 2px and 3:1", async ({ page }) => {
@@ -130,6 +167,37 @@ test.describe("at 375 px", () => {
       expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
     });
   }
+
+  // Spec 005 AC8 at 375 px: the current page is marked and looks different by more than colour,
+  // and every link has a keyboard focus outline.
+  for (const { name, path } of tabs) {
+    test(`AC8: at 375 px on ${path} only the ${name} tab is current, with a bar and heavier weight`, async ({ page }) => {
+      await page.goto(path);
+      const current = nav(page).locator('a[aria-current="page"]');
+      await expect(current).toHaveCount(1);
+      await expect(current).toHaveText(name);
+      await expect(nav(page).locator("a[aria-current]")).toHaveCount(1);
+      const other = nav(page).getByRole("link", { name: name === "Metrics" ? "Decisions" : "Metrics" });
+      expectCurrentLook(await look(current), await look(other));
+    });
+  }
+
+  test("AC8: at 375 px every tab and the site name show a keyboard focus outline of at least 2px and 3:1", async ({ page }) => {
+    await page.goto("/how-we-work");
+    for (const link of [page.getByRole("link", { name: "AI Engineering Scaffold" }).first(), ...tabs.map(({ name }) => nav(page).getByRole("link", { name }))]) {
+      await link.focus();
+      await page.keyboard.press("Shift+Tab");
+      await page.keyboard.press("Tab");
+      const outline = await link.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return { style: cs.outlineStyle, width: parseFloat(cs.outlineWidth), color: cs.outlineColor, active: el === document.activeElement };
+      });
+      expect(outline.active).toBe(true);
+      expect(outline.style).not.toBe("none");
+      expect(outline.width).toBeGreaterThanOrEqual(2);
+      expect(contrastRatio(toHex(outline.color), tokenHex("canvas"))).toBeGreaterThanOrEqual(3);
+    }
+  });
 
   for (const { name, path } of tabs) {
     test(`AC5: the ${name} tab can be clicked and goes to ${path}`, async ({ page }) => {
