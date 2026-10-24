@@ -1,20 +1,43 @@
 /*
- * The site theme (spec 004, decisions/0014). Use only the colour tokens
- * below: they must match TOKENS in lib/theme.ts, which a unit test checks.
- * A new colour or font needs a new ADR. No translucent colours or
- * color-mix(): a blended colour needs its own token.
+ * The site theme (spec 005, decisions/0017, which supersedes ADR 0014's
+ * palette, fonts and tables). Use only the colour tokens below: they must
+ * match TOKENS in lib/theme.ts, which a unit test checks. A new colour or
+ * font needs a new ADR. No translucent colours or color-mix(): a blended
+ * colour needs its own token.
+ *
+ * Every margin, padding and gap is a --space-* value, 0, or auto where it
+ * centres a block (spec 005, AC3). No em, px or rem in spacing.
  */
 :root {
   color-scheme: light;
-  --colour-cream: #E8E1CF;
-  --colour-white: #FFFFFF;
-  --colour-ink: #313824;
-  --colour-dark-olive: #4F5B3A;
-  --colour-terracotta-dark: #7E5039;
-  --colour-terracotta: #A86B4C;
-  --colour-olive: #7A8B5A;
-  --colour-sage: #B9B08C;
-  --measure: 42rem;
+  --colour-canvas: #FFFFFF;
+  --colour-canvas-subtle: #F6F8FA;
+  --colour-neutral-subtle: #EFF2F5;
+  --colour-border: #D1D9E0;
+  --colour-fg: #1F2328;
+  --colour-fg-muted: #59636E;
+  --colour-accent: #0969DA;
+  --colour-accent-subtle: #DDF4FF;
+  --colour-visited: #8250DF;
+  --colour-success: #1A7F37;
+  --colour-success-subtle: #DAFBE1;
+  --colour-danger: #CF222E;
+  --colour-danger-subtle: #FFEBE9;
+  --colour-highlight: #BC4C00;
+
+  /* Spacing scale: 4, 8, 12, 16, 24, 32, 48 and 64 px on a 16 px root. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+
+  --page-width: 64rem;
+  --measure: 48rem;
+  --radius: 6px;
 }
 
 * {
@@ -23,19 +46,23 @@
 
 html,
 body {
-  background: var(--colour-cream);
-  color: var(--colour-ink);
+  background: var(--colour-canvas);
+  color: var(--colour-fg);
 }
 
 /*
- * Fonts: --font-heading (Source Serif 4) and --font-body (Inter) come from
- * next/font in app/fonts.ts, set on <html> by the root layout. Code stays on
- * the system monospace stack.
+ * Fonts: --font-body (Inter) and --font-mono (JetBrains Mono) come from
+ * next/font in app/fonts.ts, set on <html> by the root layout. Headings use
+ * Inter too, at weight 600.
  */
 body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
   margin: 0;
   font-family: var(--font-body);
-  line-height: 1.6;
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 h1,
@@ -44,26 +71,123 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-heading);
-  color: var(--colour-dark-olive);
+  font-family: var(--font-body);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--colour-fg);
+  scroll-margin-top: var(--space-4);
+}
+
+h1 {
+  font-size: 2rem;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: var(--space-6) 0 var(--space-4);
+}
+
+h2 {
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: var(--space-7) 0 var(--space-3);
+}
+
+h3 {
+  font-size: 1.25rem;
+  margin: var(--space-5) 0 var(--space-2);
+}
+
+h4,
+h5,
+h6 {
+  font-size: 1rem;
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+p {
+  margin: 0 0 var(--space-4);
+}
+
+ul,
+ol {
+  margin: 0 0 var(--space-4);
+  padding: 0 0 0 var(--space-5);
+}
+
+li {
+  margin: 0 0 var(--space-1);
+}
+
+dl {
+  margin: 0 0 var(--space-4);
+}
+
+dt {
+  margin: 0;
+}
+
+dd {
+  margin: 0 0 var(--space-2);
+}
+
+figure {
+  margin: 0 0 var(--space-4);
+}
+
+blockquote {
+  margin: 0 0 var(--space-4);
+  padding: 0 0 0 var(--space-4);
+  border-left: 4px solid var(--colour-border);
+  color: var(--colour-fg-muted);
+}
+
+hr {
+  margin: var(--space-6) 0;
+  border: 0;
+  border-top: 1px solid var(--colour-border);
 }
 
 code,
 kbd,
 pre,
+samp,
+.mono {
+  font-family: var(--font-mono);
+}
+
+code,
+kbd,
 samp {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.875em;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+  background: var(--colour-canvas-subtle);
+}
+
+pre {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  background: var(--colour-canvas-subtle);
+  font-size: 0.875rem;
+  overflow-x: auto;
+}
+
+pre code {
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
 }
 
 a {
-  color: var(--colour-terracotta-dark);
+  color: var(--colour-accent);
   text-decoration: underline;
   text-decoration-thickness: 1px;
   text-underline-offset: 0.15em;
 }
 
 a:visited {
-  color: var(--colour-dark-olive);
+  color: var(--colour-visited);
 }
 
 a:hover {
@@ -71,49 +195,76 @@ a:hover {
 }
 
 :focus-visible {
-  outline: 2px solid var(--colour-dark-olive);
+  outline: 2px solid var(--colour-accent);
   outline-offset: 2px;
 }
 
 ::selection {
-  background: var(--colour-sage);
-  color: var(--colour-ink);
-}
-
-.site-header-inner,
-main {
-  max-width: var(--measure);
-  margin: 0 auto;
-  padding: 1rem;
+  background: var(--colour-accent-subtle);
+  color: var(--colour-fg);
 }
 
 /*
- * Header and main nav (spec 004, AC4 and AC5; ADR 0014). A white band with a
- * decorative olive rule. The tabs are always visible: below 40rem the site
+ * Layout: the header row, main content and footer row share one width and
+ * centre on wide screens. Gutters are 16 px on a phone and 32 px above 40rem.
+ * Prose is capped at a readable measure; tables use the full width.
+ */
+.site-header-inner,
+main,
+.site-footer-inner {
+  width: 100%;
+  max-width: var(--page-width);
+  margin-inline: auto;
+  padding-inline: var(--space-6);
+}
+
+main {
+  flex: 1 0 auto;
+  padding-block: 0 var(--space-7);
+}
+
+main p,
+main ul,
+main ol,
+main dl {
+  max-width: var(--measure);
+}
+
+@media (width < 40rem) {
+  .site-header-inner,
+  main,
+  .site-footer-inner {
+    padding-inline: var(--space-4);
+  }
+}
+
+/*
+ * Header and main nav (spec 005, AC8; ADR 0017, keeping ADR 0014's behaviour).
+ * A white band with a 1px rule. Tabs are always visible: below 40rem the site
  * name takes its own row and the tabs sit in one row beneath it. The current
- * tab is a filled pill at weight 600, so it differs by shape and weight, not
- * only colour. No transitions.
+ * tab is weight 600 with a 2px highlight bar along its bottom edge, so it
+ * differs by shape and weight, not only colour, and keeps both when hovered.
+ * No transitions.
  */
 .site-header {
-  background: var(--colour-white);
-  border-bottom: 3px solid var(--colour-olive);
+  background: var(--colour-canvas);
+  border-bottom: 1px solid var(--colour-border);
 }
 
 .site-header-inner {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem 1rem;
   flex-wrap: wrap;
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
+  gap: var(--space-2) var(--space-4);
+  padding-block: var(--space-3);
 }
 
 .site-name,
 .site-name:visited {
-  font-size: 1.125rem;
+  font-size: 1rem;
   font-weight: 600;
-  color: var(--colour-dark-olive);
+  color: var(--colour-fg);
   text-decoration: none;
 }
 
@@ -124,88 +275,206 @@ main {
 .main-nav ul {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.main-nav li {
+  margin: 0;
+}
+
 /*
- * Keep white out of the :visited and :hover rules below: the minifier writes
- * it as #fff, which the AC1 stylesheet-rule check does not accept.
+ * Keep canvas (white) out of the :visited and :hover rules below: the
+ * minifier writes it as #fff, which the AC1 stylesheet-rule check reads.
  */
 .main-nav a {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  min-height: 2.75rem;
-  padding: 0 0.875rem;
-  border-radius: 999px;
-  background: var(--colour-white);
-  color: var(--colour-ink);
+  min-height: 2.25rem;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--colour-fg);
+  font-size: 0.875rem;
   font-weight: 400;
-  line-height: 1.2;
+  line-height: 1.25;
   text-decoration: none;
 }
 
 .main-nav a:visited {
-  color: var(--colour-ink);
+  color: var(--colour-fg);
 }
 
 .main-nav a:hover {
-  background: var(--colour-cream);
-  color: var(--colour-ink);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
+  background: var(--colour-neutral-subtle);
+  color: var(--colour-fg);
 }
 
 /*
- * The current page ("page") or section ("true"). Same specificity as the
- * :visited and :hover rules above, so coming later keeps the fill and white
- * text when the tab is visited or hovered.
+ * The current page ("page") or section ("true"). Coming after the :hover
+ * rule with higher specificity, it keeps its fill (none), weight and bar on
+ * hover, and shows hover with an underline instead.
  */
 .main-nav a[aria-current] {
-  background: var(--colour-dark-olive);
-  color: var(--colour-white);
   font-weight: 600;
 }
 
-@media (max-width: 40rem) {
+.main-nav a[aria-current]:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+
+.main-nav a[aria-current]::after {
+  content: "";
+  position: absolute;
+  inset-inline: var(--space-2);
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--colour-highlight);
+}
+
+@media (width < 40rem) {
   .site-header-inner {
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .main-nav a {
+    min-height: 2.75rem;
+  }
 }
 
 /*
- * Tables (spec 004, AC6 and AC7): a sage header row with ink text (5.6:1),
- * white body rows with sage separators, and right-aligned tabular numbers
- * in columns marked `num`. Never put terracotta-dark or dark-olive text on
- * sage: both fall below 4.5:1 there.
+ * Footer (spec 005, AC9): the build year and a mail link, on a subtle band.
+ */
+.site-footer {
+  background: var(--colour-canvas-subtle);
+  border-top: 1px solid var(--colour-border);
+  color: var(--colour-fg-muted);
+  font-size: 0.875rem;
+}
+
+.site-footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  padding-block: var(--space-5);
+}
+
+/*
+ * Badges (spec 005, AC5): a pill with a 1px border and text in the status
+ * colour on a pale fill. The border carries the meaning (at least 3:1 on
+ * canvas and canvas-subtle); the fill is decorative; the word always shows.
+ */
+.badge {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  vertical-align: baseline;
+}
+
+.badge-accent {
+  color: var(--colour-accent);
+  border-color: var(--colour-accent);
+  background: var(--colour-accent-subtle);
+}
+
+.badge-success {
+  color: var(--colour-success);
+  border-color: var(--colour-success);
+  background: var(--colour-success-subtle);
+}
+
+.badge-neutral {
+  color: var(--colour-fg-muted);
+  border-color: var(--colour-fg-muted);
+  background: var(--colour-neutral-subtle);
+}
+
+.badge-danger {
+  color: var(--colour-danger);
+  border-color: var(--colour-danger);
+  background: var(--colour-danger-subtle);
+}
+
+/*
+ * The ADR page: an "ADR NNNN" eyebrow above the title, and the status, date
+ * and decided-by details as a compact grid.
+ */
+.eyebrow {
+  margin: var(--space-6) 0 0;
+  color: var(--colour-fg-muted);
+  font-size: 0.875rem;
+}
+
+.eyebrow + h1 {
+  margin-top: var(--space-1);
+}
+
+.adr-meta {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--colour-border);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+}
+
+.adr-meta dt {
+  color: var(--colour-fg-muted);
+}
+
+.adr-meta dd {
+  margin: 0;
+}
+
+/*
+ * Tables (spec 005, AC6 and AC7): a canvas-subtle header row with fg text at
+ * weight 600, 1px border separators, and right-aligned tabular numbers in
+ * columns marked `num`. Every table has explicit ARIA roles, so the phone
+ * layout below can reflow rows into cards and still expose a table. Tables
+ * never scroll on their own.
  */
 table {
   width: 100%;
+  margin: 0 0 var(--space-6);
   border-collapse: collapse;
+  font-size: 0.875rem;
 }
 
 th,
 td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--colour-border);
   text-align: left;
-  padding: 0.4rem 0.5rem;
-  border-bottom: 1px solid var(--colour-sage);
+  vertical-align: top;
 }
 
 thead th {
-  background: var(--colour-sage);
-  color: var(--colour-ink);
+  background: var(--colour-canvas-subtle);
+  color: var(--colour-fg);
   font-weight: 600;
 }
 
 tbody tr {
-  background: var(--colour-white);
-  color: var(--colour-ink);
+  background: var(--colour-canvas);
+  color: var(--colour-fg);
 }
 
-/* Row header cells use body weight, so they don't look like the header row. */
+/* Row header cells use body weight on wide screens, so they don't look like the header row. */
 tbody th {
   font-weight: 400;
 }
@@ -227,25 +496,85 @@ td[align="center"] {
   text-align: center;
 }
 
+/* Column names for the phone layout. aria-hidden, so they never join an accessible name. */
+.cell-label {
+  display: none;
+}
+
 /*
- * Over budget: set from the same status that prints "Over budget", which
- * stays as words so the status never depends on colour alone. The
- * terracotta marker is 3.3:1 on cream; the status text is 5.2:1.
+ * In the decisions index and the metrics tables, header, date, number,
+ * identifier and badge cells keep to one line; only cells marked `wrap`
+ * (Decision, Title) wrap. Applied from 64rem, where every such table fits,
+ * so a mid-width screen wraps rather than scrolling sideways.
  */
-tbody tr.over-budget {
-  background: var(--colour-cream);
+@media (width >= 64rem) {
+  .data-table th,
+  .data-table td {
+    white-space: nowrap;
+  }
+
+  .data-table td.wrap {
+    white-space: normal;
+  }
 }
 
-tr.over-budget > :first-child {
-  border-left: 4px solid var(--colour-terracotta);
-}
+/*
+ * Below 40rem each row becomes a card: the row header is its title, and each
+ * data cell is a "label | value" grid. The header row is visually hidden but
+ * keeps its columnheader role. Nothing is clipped or scrolls sideways.
+ */
+@media (width < 40rem) {
+  table,
+  tbody,
+  tr,
+  th,
+  td {
+    display: block;
+  }
 
-tr.over-budget .status {
-  color: var(--colour-terracotta-dark);
-  font-weight: 600;
-}
+  thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 
-pre,
-.table-scroll {
-  overflow-x: auto;
+  tbody tr {
+    margin: 0 0 var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--colour-border);
+    border-radius: var(--radius);
+  }
+
+  tbody th,
+  tbody td {
+    padding: var(--space-1) 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  tbody th {
+    padding: 0 0 var(--space-2);
+    font-weight: 600;
+  }
+
+  tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+
+  .cell-label {
+    display: block;
+    color: var(--colour-fg-muted);
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    text-align: left;
+  }
 }

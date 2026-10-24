@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { NAV_LINKS, ariaCurrent, navState } from "@/lib/nav";
 
 /**
- * The main nav (spec 004, AC4 and AC5; ADR 0014). A client component only
+ * The main nav (spec 004, AC4 and AC5; ADR 0014, restyled by ADR 0017). A client component only
  * because it reads the URL. Every route is prerendered, so `aria-current` is
  * in the static HTML before any JavaScript runs.
  */

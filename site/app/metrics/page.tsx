@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Badge from "@/app/_components/badge";
+import Cell from "@/app/_components/cell";
+import DateTime from "@/app/_components/date-time";
 import { loadLedger } from "@/lib/ledger/load";
 import {
   budgetStatus,
   EMPTY_MESSAGE,
   formatBudget,
   formatSpend,
-  formatUtc,
   formatWeekSpend,
   metricsPageState,
-  OVER_BUDGET,
   runsByWeekRows,
   spendBySpecRows,
   UNAVAILABLE_MESSAGE,
@@ -36,8 +37,7 @@ export default async function MetricsPage() {
       {state.kind === "empty" && <p>{EMPTY_MESSAGE}</p>}
       {state.kind === "ready" && (
         <p>
-          Newest run included: <time dateTime={state.newestRun}>{formatUtc(state.newestRun)}</time>. The page
-          updates on every merge to main.
+          Newest run included: <DateTime iso={state.newestRun} />. The page updates on every merge to main.
         </p>
       )}
       <p>
@@ -54,88 +54,111 @@ export default async function MetricsPage() {
   );
 }
 
-// Scrolls on its own like Spend by spec, so a narrow screen never scrolls the page (AC7).
+// On a phone each row reflows into a card, so a narrow screen never scrolls sideways (spec 005, AC7).
 function RunsByWeek({ rows }: { rows: WeekRow[] }) {
   return (
     <section>
       <h2 id="runs-by-week">Runs by week</h2>
-      <div className="table-scroll" role="region" aria-labelledby="runs-by-week" tabIndex={0}>
-        <table aria-labelledby="runs-by-week">
-          <thead>
-            <tr>
-              <th scope="col">Week starting</th>
-              <th scope="col" className="num">
-                Runs
+      <table role="table" aria-labelledby="runs-by-week" className="data-table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" scope="col">
+              Week starting
+            </th>
+            <th role="columnheader" scope="col" className="num">
+              Runs
+            </th>
+            <th role="columnheader" scope="col" className="num">
+              Spend
+            </th>
+            <th role="columnheader" scope="col" className="num">
+              Runs not successful
+            </th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          {rows.map((row) => (
+            <tr role="row" key={row.weekStart}>
+              <th role="rowheader" scope="row">
+                <DateTime iso={row.weekStart} />
               </th>
-              <th scope="col" className="num">
-                Spend
-              </th>
-              <th scope="col" className="num">
-                Runs not successful
-              </th>
+              <Cell label="Runs" className="num">
+                {row.runs}
+              </Cell>
+              <Cell label="Spend" className="num mono">
+                {formatWeekSpend(row)}
+              </Cell>
+              <Cell label="Runs not successful" className="num">
+                {row.notSuccess}
+              </Cell>
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.weekStart}>
-                <th scope="row">{row.weekStart}</th>
-                <td className="num">{row.runs}</td>
-                <td className="num">{formatWeekSpend(row)}</td>
-                <td className="num">{row.notSuccess}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }
 
-// The region scrolls on its own, so a narrow screen never scrolls the whole page (AC7).
 function SpendBySpec({ rows }: { rows: SpendRow[] }) {
   return (
     <section>
       <h2 id="spend-by-spec">Spend by spec</h2>
-      <div className="table-scroll" role="region" aria-labelledby="spend-by-spec" tabIndex={0}>
-        <table aria-labelledby="spend-by-spec">
-          <thead>
-            <tr>
-              <th scope="col">Spec</th>
-              <th scope="col">Title</th>
-              <th scope="col" className="num">
-                Spend
-              </th>
-              <th scope="col" className="num">
-                Budget
-              </th>
-              <th scope="col">Status</th>
-              <th scope="col" className="num">
-                Runs
-              </th>
-              <th scope="col" className="num">
-                Runs with no cost
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              // One status drives both the words and the row style, so they cannot disagree (AC7).
-              const status = budgetStatus(row);
-              return (
-                <tr key={row.spec} className={status === OVER_BUDGET ? "over-budget" : undefined}>
-                  <th scope="row">{row.label}</th>
-                  <td>{row.title ?? ""}</td>
-                  <td className="num">{formatSpend(row)}</td>
-                  <td className="num">{formatBudget(row)}</td>
-                  <td className="status">{status}</td>
-                  <td className="num">{row.runs}</td>
-                  <td className="num">{row.noCostRuns}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <table role="table" aria-labelledby="spend-by-spec" className="data-table">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" scope="col">
+              Spec
+            </th>
+            <th role="columnheader" scope="col">
+              Title
+            </th>
+            <th role="columnheader" scope="col" className="num">
+              Spend
+            </th>
+            <th role="columnheader" scope="col" className="num">
+              Budget
+            </th>
+            <th role="columnheader" scope="col">
+              Status
+            </th>
+            <th role="columnheader" scope="col" className="num">
+              Runs
+            </th>
+            <th role="columnheader" scope="col" className="num">
+              Runs with no cost
+            </th>
+          </tr>
+        </thead>
+        <tbody role="rowgroup">
+          {rows.map((row) => {
+            // Empty when there is nothing to compare, and then no badge (AC5).
+            const status = budgetStatus(row);
+            return (
+              <tr role="row" key={row.spec}>
+                <th role="rowheader" scope="row" className="mono">
+                  {row.label}
+                </th>
+                <Cell label="Title" className="wrap">
+                  {row.title ?? ""}
+                </Cell>
+                <Cell label="Spend" className="num mono">
+                  {formatSpend(row)}
+                </Cell>
+                <Cell label="Budget" className="num mono">
+                  {formatBudget(row)}
+                </Cell>
+                <Cell label="Status">{status ? <Badge status={status} /> : null}</Cell>
+                <Cell label="Runs" className="num">
+                  {row.runs}
+                </Cell>
+                <Cell label="Runs with no cost" className="num">
+                  {row.noCostRuns}
+                </Cell>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </section>
   );
 }

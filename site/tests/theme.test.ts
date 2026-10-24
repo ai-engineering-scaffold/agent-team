@@ -5,7 +5,6 @@ import {
   ALLOWED_COLOURS,
   TOKENS,
   contrastRatio,
-  hexToHsl,
   parseHex,
   relativeLuminance,
   tokenHex,
@@ -15,7 +14,7 @@ import {
 const repoRoot = path.join(__dirname, "..", "..");
 const globalsCss = path.join(__dirname, "..", "app", "globals.css");
 
-/** The contrast column as the ADR and design doc write it, e.g. "5.6:1 on cream, 7.3:1 on white". */
+/** The contrast column as the ADR and design doc write it, e.g. "5.2:1 on canvas, 4.9:1 on canvas-subtle". */
 function contrastText(token: Token): string {
   if (token.contrast.length === 0) return "n/a";
   return token.contrast.map((c) => `${c.ratio.toFixed(1)}:1 on ${c.on}`).join(", ");
@@ -61,16 +60,34 @@ describe("contrastRatio", () => {
   });
 });
 
+// The palette exactly as issue #57 and ADR 0017 fix it. Changing a colour needs a new ADR.
+const ADR_0017_PALETTE: Record<string, string> = {
+  canvas: "#FFFFFF",
+  "canvas-subtle": "#F6F8FA",
+  "neutral-subtle": "#EFF2F5",
+  border: "#D1D9E0",
+  fg: "#1F2328",
+  "fg-muted": "#59636E",
+  accent: "#0969DA",
+  "accent-subtle": "#DDF4FF",
+  visited: "#8250DF",
+  success: "#1A7F37",
+  "success-subtle": "#DAFBE1",
+  danger: "#CF222E",
+  "danger-subtle": "#FFEBE9",
+  highlight: "#BC4C00",
+};
+
 describe("TOKENS", () => {
-  it("lists eight tokens with unique names and upper-case hex values", () => {
-    expect(TOKENS).toHaveLength(8);
+  it("lists fourteen tokens with unique names and upper-case hex values", () => {
+    expect(TOKENS).toHaveLength(14);
     expect(new Set(TOKENS.map((t) => t.name)).size).toBe(TOKENS.length);
     for (const t of TOKENS) expect(t.hex).toMatch(/^#[0-9A-F]{6}$/);
   });
 
-  it("includes Graham's five palette colours, cream and white", () => {
-    const palette = ["#7A8B5A", "#B9B08C", "#E8E1CF", "#4F5B3A", "#A86B4C"];
-    for (const hex of [...palette, "#FFFFFF"]) expect(ALLOWED_COLOURS).toContain(hex);
+  it("holds exactly ADR 0017's palette, in order", () => {
+    expect(TOKENS.map((t) => t.name)).toEqual(Object.keys(ADR_0017_PALETTE));
+    expect(Object.fromEntries(TOKENS.map((t) => [t.name, t.hex]))).toEqual(ADR_0017_PALETTE);
     expect(ALLOWED_COLOURS).toEqual(TOKENS.map((t) => t.hex));
   });
 
@@ -83,30 +100,41 @@ describe("TOKENS", () => {
     }
   });
 
-  it("gives text tokens at least 4.5:1 on cream and white, and the UI marker at least 3:1 on cream", () => {
-    for (const name of ["ink", "dark-olive", "terracotta-dark"] as const) {
-      expect(contrastRatio(tokenHex(name), tokenHex("cream"))).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(tokenHex(name), tokenHex("white"))).toBeGreaterThanOrEqual(4.5);
+  it("meets the threshold of every stated pair, unrounded", () => {
+    for (const t of TOKENS) {
+      for (const c of t.contrast) {
+        expect(contrastRatio(t.hex, tokenHex(c.on)), `${t.name} on ${c.on}`).toBeGreaterThanOrEqual(c.min);
+      }
     }
-    // Selection text and table header text: ink on sage.
-    expect(contrastRatio(tokenHex("ink"), tokenHex("sage"))).toBeGreaterThanOrEqual(4.5);
-    expect(contrastRatio(tokenHex("terracotta"), tokenHex("cream"))).toBeGreaterThanOrEqual(3);
   });
 
-  it("makes each darker shade from its source's hue and saturation, with lower lightness", () => {
-    const shades = [
-      { name: "ink", source: "dark-olive", lightness: 0.62 },
-      { name: "terracotta-dark", source: "terracotta", lightness: 0.75 },
-    ] as const;
-    for (const s of shades) {
-      const shade = hexToHsl(tokenHex(s.name));
-      const source = hexToHsl(tokenHex(s.source));
-      // Rounding to 8-bit hex channels moves hue and saturation slightly.
-      expect(Math.abs(shade.h - source.h), `${s.name} hue`).toBeLessThan(1.5);
-      expect(Math.abs(shade.s - source.s), `${s.name} saturation`).toBeLessThan(1);
-      expect(shade.l).toBeLessThan(source.l);
-      expect(shade.l / source.l, `${s.name} lightness`).toBeCloseTo(s.lightness, 2);
+  it("gives every text token at least 4.5:1 on canvas and canvas-subtle", () => {
+    for (const name of ["fg", "fg-muted", "accent", "visited", "success", "danger"] as const) {
+      for (const on of ["canvas", "canvas-subtle"] as const) {
+        expect(contrastRatio(tokenHex(name), tokenHex(on)), `${name} on ${on}`).toBeGreaterThanOrEqual(4.5);
+      }
     }
+  });
+
+  it("gives each badge's text 4.5:1 on its fill, and its border 3:1 on canvas and canvas-subtle", () => {
+    const badges = [
+      ["accent", "accent-subtle"],
+      ["success", "success-subtle"],
+      ["fg-muted", "neutral-subtle"],
+      ["danger", "danger-subtle"],
+    ] as const;
+    for (const [text, fill] of badges) {
+      expect(contrastRatio(tokenHex(text), tokenHex(fill)), `${text} on ${fill}`).toBeGreaterThanOrEqual(4.5);
+      for (const on of ["canvas", "canvas-subtle"] as const) {
+        expect(contrastRatio(tokenHex(text), tokenHex(on)), `${text} border on ${on}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("gives the current-page bar and the focus ring 3:1 on canvas, and selection text 4.5:1", () => {
+    expect(contrastRatio(tokenHex("highlight"), tokenHex("canvas"))).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(tokenHex("accent"), tokenHex("canvas"))).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(tokenHex("fg"), tokenHex("accent-subtle"))).toBeGreaterThanOrEqual(4.5);
   });
 });
 
@@ -133,14 +161,14 @@ describe("globals.css", () => {
 });
 
 describe.each([
-  ["ADR 0014", path.join(repoRoot, "decisions", "0014-site-theme.md")],
-  ["the design doc", path.join(repoRoot, "docs", "design", "004-site-theme.md")],
+  ["ADR 0017", path.join(repoRoot, "decisions", "0017-site-redesign-theme.md")],
+  ["the design doc", path.join(repoRoot, "docs", "design", "005-site-redesign.md")],
 ])("the colour-token table in %s", (_label, file) => {
   it("matches TOKENS row for row", async () => {
     const rows = tokenTableRows(await readFile(file, "utf8"));
     expect([...rows.keys()]).toEqual(TOKENS.map((t) => t.name));
     for (const t of TOKENS) {
-      expect(rows.get(t.name)).toEqual([`\`${t.name}\``, `\`${t.hex}\``, t.source, t.role, contrastText(t)]);
+      expect(rows.get(t.name)).toEqual([`\`${t.name}\``, `\`${t.hex}\``, t.role, contrastText(t)]);
     }
   });
 });

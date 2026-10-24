@@ -65,11 +65,11 @@ for (const route of routes) {
     expect(offenders(await collectComputedColours(page))).toEqual([]);
   });
 
-  test("AC1: " + route + " keeps the cream page and token colours when the system prefers dark", async ({ page }) => {
+  test("AC1: " + route + " keeps the canvas page and token colours when the system prefers dark", async ({ page }) => {
     await page.emulateMedia({ colorScheme: "dark" });
     await page.goto(route);
     const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    expect(toHex(bg)).toBe(tokenHex("cream"));
+    expect(toHex(bg)).toBe(tokenHex("canvas"));
     expect(offenders(await collectComputedColours(page))).toEqual([]);
   });
 
@@ -157,7 +157,8 @@ for (const route of routes) {
   });
 }
 
-// Spec 004, AC3: headings and body text use two different fonts, both served from this site.
+// Spec 005 AC1 (rewrites spec 004's AC3 font test): headings and body text use web fonts served from
+// this site, with loaded FontFaces. Headings and body share Inter in ADR 0017, so they need not differ.
 
 /** First family of a computed font-family list, with its quotes removed. */
 function firstFamily(list: string): string {
@@ -165,7 +166,7 @@ function firstFamily(list: string): string {
 }
 
 for (const route of routes) {
-  test("AC3: " + route + " serves fonts same-origin and has loaded FontFaces for heading and body", async ({
+  test("AC1: " + route + " serves fonts same-origin and has loaded FontFaces for heading and body", async ({
     page,
   }) => {
     const fontUrls: string[] = [];
@@ -184,15 +185,78 @@ for (const route of routes) {
     const bodyFamily = firstFamily(await paragraph.evaluate((el) => getComputedStyle(el).fontFamily));
 
     for (const family of [headingFamily, bodyFamily]) {
-      const statuses = await page.evaluate(
-        (name) =>
-          Array.from(document.fonts)
-            .filter((face) => face.family.replace(/^["']+|["']+$/g, "") === name)
-            .map((face) => face.status),
-        family,
-      );
-      expect(statuses, "FontFace for " + family).toContain("loaded");
+      expect(await loadedStatuses(page, family), "FontFace for " + family).toContain("loaded");
     }
-    expect(headingFamily).not.toBe(bodyFamily);
+    expect(fontUrls.length, "the page requested at least one web font").toBeGreaterThan(0);
   });
+}
+
+// Spec 005 AC1: the monospace accent is a web font too, served from this site and actually loaded.
+// Pages with no monospace text never load it, so these routes are ones that show some: ADR numbers
+// on the decisions index and spec labels on metrics.
+for (const route of ["/decisions", "/metrics", "/decisions/0002-six-agent-roles-and-five-gates"]) {
+  test("AC1: " + route + " loads the monospace web font same-origin", async ({ page }) => {
+    const fontUrls: string[] = [];
+    page.on("request", (request) => {
+      if (request.resourceType() === "font") fontUrls.push(request.url());
+    });
+    await page.goto(route);
+    const origin = new URL(page.url()).origin;
+    await page.evaluate(() => document.fonts.ready);
+    for (const url of fontUrls) expect(new URL(url).origin, "font request " + url).toBe(origin);
+
+    const monoFamily = await page.evaluate(() => {
+      const declared = getComputedStyle(document.documentElement).getPropertyValue("--font-mono");
+      return declared.split(",")[0].trim().replace(/^["']+|["']+$/g, "");
+    });
+    expect(monoFamily, "--font-mono is defined on the page").not.toBe("");
+    // Some element on the page uses the mono family, and its FontFace has loaded.
+    const used = await page.evaluate((family) => {
+      const q = (s: string) => s.split(",")[0].trim().replace(/^["']+|["']+$/g, "");
+      return Array.from(document.body.querySelectorAll("*")).some((el) => q(getComputedStyle(el).fontFamily) === family);
+    }, monoFamily);
+    expect(used, "an element uses the monospace family").toBe(true);
+    expect(await loadedStatuses(page, monoFamily), "FontFace for " + monoFamily).toContain("loaded");
+    const body = firstFamily(await page.getByRole("main").evaluate((el) => getComputedStyle(el).fontFamily));
+    expect(monoFamily).not.toBe(body);
+  });
+}
+
+test("AC1: no page requests a font or stylesheet from a third-party host", async ({ page }) => {
+  const external: string[] = [];
+  const origin = new URL(process.env.BASE_URL ?? "http://localhost:3000").origin;
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.protocol.startsWith("http") && url.origin !== origin) external.push(url.href);
+  });
+  for (const route of routes) {
+    await page.goto(route);
+    await page.evaluate(() => document.fonts.ready);
+  }
+  expect(external).toEqual([]);
+});
+
+// Spec 005 AC2 at 375 px: axe finds no colour-contrast violations on any page.
+test.describe("at 375 px", () => {
+  test.use({ viewport: { width: 375, height: 800 } });
+  for (const route of routes) {
+    test("AC2: " + route + " has no colour-contrast violations at 375 px", async ({ page }) => {
+      await page.goto(route);
+      const results = await new AxeBuilder({ page }).withRules(["color-contrast"]).analyze();
+      expect(
+        results.violations.map((v) => ({ id: v.id, targets: v.nodes.map((n) => n.target.join(" ")) })),
+      ).toEqual([]);
+    });
+  }
+});
+
+/** The load status of every FontFace with this family name. */
+function loadedStatuses(page: Page, family: string): Promise<string[]> {
+  return page.evaluate(
+    (name) =>
+      Array.from(document.fonts)
+        .filter((face) => face.family.replace(/^["']+|["']+$/g, "") === name)
+        .map((face) => face.status),
+    family,
+  );
 }

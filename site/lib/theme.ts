@@ -1,105 +1,154 @@
 /**
- * The site's colour tokens (spec 004, ADR 0014) and a WCAG contrast function.
+ * The site's colour tokens (spec 005, ADR 0017) and a WCAG contrast function.
  *
  * This is the one list of colours the site may use. `app/globals.css` declares
  * the same tokens as `--colour-*` custom properties, the unit tests check the
- * two match, and the Playwright theme tests check every rendered colour is in
- * `ALLOWED_COLOURS`.
+ * two match (and match the tables in ADR 0017 and design doc 005), and the
+ * Playwright theme tests check every rendered colour is in `ALLOWED_COLOURS`.
+ * The hex values are inspired by GitHub's open-source Primer palette (MIT).
  */
 
 export type TokenName =
-  | "cream"
-  | "white"
-  | "ink"
-  | "dark-olive"
-  | "terracotta-dark"
-  | "terracotta"
-  | "olive"
-  | "sage";
+  | "canvas"
+  | "canvas-subtle"
+  | "neutral-subtle"
+  | "border"
+  | "fg"
+  | "fg-muted"
+  | "accent"
+  | "accent-subtle"
+  | "visited"
+  | "success"
+  | "success-subtle"
+  | "danger"
+  | "danger-subtle"
+  | "highlight";
 
 /** A contrast figure the ADR states for a token, against another token. */
 export interface ContrastClaim {
   on: TokenName;
   /** The WCAG ratio, to one decimal place, as written in the ADR. */
   ratio: number;
+  /** The WCAG AA threshold the pair must meet: 4.5 for text, 3 for borders, bars and rings. */
+  min: 4.5 | 3;
 }
 
 export interface Token {
   name: TokenName;
   /** Upper-case `#RRGGBB`. */
   hex: string;
-  /** Where the colour comes from: Graham's palette, white, or a darker shade of a palette colour. */
-  source: string;
   role: string;
   contrast: ContrastClaim[];
 }
 
 export const TOKENS: readonly Token[] = [
   {
-    name: "cream",
-    hex: "#E8E1CF",
-    source: "palette",
-    role: "page background",
-    contrast: [],
-  },
-  {
-    name: "white",
+    name: "canvas",
     hex: "#FFFFFF",
-    source: "allowed by AC1",
-    role: "header band, table bodies",
+    role: "page background, table rows, cards, header band",
     contrast: [],
   },
   {
-    name: "ink",
-    hex: "#313824",
-    source: "dark olive at 62% lightness",
-    role: "body text, table text, selection text",
-    contrast: [
-      { on: "cream", ratio: 9.4 },
-      { on: "white", ratio: 12.2 },
-      { on: "sage", ratio: 5.6 },
-    ],
-  },
-  {
-    name: "dark-olive",
-    hex: "#4F5B3A",
-    source: "palette",
-    role: "headings, visited links, focus ring, current nav tab fill",
-    contrast: [
-      { on: "cream", ratio: 5.6 },
-      { on: "white", ratio: 7.3 },
-    ],
-  },
-  {
-    name: "terracotta-dark",
-    hex: "#7E5039",
-    source: "terracotta at 75% lightness",
-    role: 'links, the "Over budget" status text',
-    contrast: [
-      { on: "cream", ratio: 5.2 },
-      { on: "white", ratio: 6.8 },
-    ],
-  },
-  {
-    name: "terracotta",
-    hex: "#A86B4C",
-    source: "palette",
-    role: "over-budget row marker, a UI marker that needs 3:1",
-    contrast: [{ on: "cream", ratio: 3.3 }],
-  },
-  {
-    name: "olive",
-    hex: "#7A8B5A",
-    source: "palette",
-    role: "3px header bottom rule (decorative)",
+    name: "canvas-subtle",
+    hex: "#F6F8FA",
+    role: "table header row, footer band, code background",
     contrast: [],
   },
   {
-    name: "sage",
-    hex: "#B9B08C",
-    source: "palette",
-    role: "text-selection background, table header fill, table row separators (decorative)",
+    name: "neutral-subtle",
+    hex: "#EFF2F5",
+    role: "nav hover fill, superseded badge fill",
     contrast: [],
+  },
+  {
+    name: "border",
+    hex: "#D1D9E0",
+    role: "header and footer rules, table separators, card outlines (decorative only)",
+    contrast: [],
+  },
+  {
+    name: "fg",
+    hex: "#1F2328",
+    role: "body text, headings, table text, current nav tab text",
+    contrast: [
+      { on: "canvas", ratio: 15.8, min: 4.5 },
+      { on: "canvas-subtle", ratio: 14.8, min: 4.5 },
+      { on: "neutral-subtle", ratio: 14.1, min: 4.5 },
+      { on: "accent-subtle", ratio: 13.9, min: 4.5 },
+    ],
+  },
+  {
+    name: "fg-muted",
+    hex: "#59636E",
+    role: "secondary text: ADR meta labels, phone column labels, footer text, superseded badge text and border",
+    contrast: [
+      { on: "canvas", ratio: 6.1, min: 4.5 },
+      { on: "canvas-subtle", ratio: 5.7, min: 4.5 },
+      { on: "neutral-subtle", ratio: 5.4, min: 4.5 },
+    ],
+  },
+  {
+    name: "accent",
+    hex: "#0969DA",
+    role: "links, focus ring, proposed badge text and border",
+    contrast: [
+      { on: "canvas", ratio: 5.2, min: 4.5 },
+      { on: "canvas-subtle", ratio: 4.9, min: 4.5 },
+      { on: "accent-subtle", ratio: 4.6, min: 4.5 },
+    ],
+  },
+  {
+    name: "accent-subtle",
+    hex: "#DDF4FF",
+    role: "proposed badge fill, selection background (with fg text)",
+    contrast: [],
+  },
+  {
+    name: "visited",
+    hex: "#8250DF",
+    role: "visited links",
+    contrast: [
+      { on: "canvas", ratio: 5.0, min: 4.5 },
+      { on: "canvas-subtle", ratio: 4.7, min: 4.5 },
+    ],
+  },
+  {
+    name: "success",
+    hex: "#1A7F37",
+    role: "accepted and Within budget badge text and border",
+    contrast: [
+      { on: "canvas", ratio: 5.1, min: 4.5 },
+      { on: "canvas-subtle", ratio: 4.8, min: 4.5 },
+      { on: "success-subtle", ratio: 4.6, min: 4.5 },
+    ],
+  },
+  {
+    name: "success-subtle",
+    hex: "#DAFBE1",
+    role: "accepted and Within budget badge fill",
+    contrast: [],
+  },
+  {
+    name: "danger",
+    hex: "#CF222E",
+    role: "rejected and Over budget badge text and border",
+    contrast: [
+      { on: "canvas", ratio: 5.4, min: 4.5 },
+      { on: "canvas-subtle", ratio: 5.0, min: 4.5 },
+      { on: "danger-subtle", ratio: 4.7, min: 4.5 },
+    ],
+  },
+  {
+    name: "danger-subtle",
+    hex: "#FFEBE9",
+    role: "rejected and Over budget badge fill",
+    contrast: [],
+  },
+  {
+    name: "highlight",
+    hex: "#BC4C00",
+    role: "the 2px current-page bar under the current nav tab",
+    contrast: [{ on: "canvas", ratio: 5.0, min: 3 }],
   },
 ];
 
@@ -138,22 +187,4 @@ export function contrastRatio(a: string, b: string): number {
   const la = relativeLuminance(a);
   const lb = relativeLuminance(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-}
-
-/** HSL of a hex colour: hue in degrees, saturation and lightness in percent. */
-export function hexToHsl(hex: string): { h: number; s: number; l: number } {
-  const [r, g, b] = parseHex(hex).map((c) => c / 255);
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  const d = max - min;
-  if (d === 0) return { h: 0, s: 0, l: l * 100 };
-  const s = d / (1 - Math.abs(2 * l - 1));
-  let h: number;
-  if (max === r) h = ((g - b) / d) % 6;
-  else if (max === g) h = (b - r) / d + 2;
-  else h = (r - g) / d + 4;
-  h *= 60;
-  if (h < 0) h += 360;
-  return { h, s: s * 100, l: l * 100 };
 }

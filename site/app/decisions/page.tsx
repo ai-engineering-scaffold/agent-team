@@ -1,37 +1,52 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Badge from "@/app/_components/badge";
+import Cell from "@/app/_components/cell";
+import DateTime from "@/app/_components/date-time";
 import { listDecisions } from "@/lib/decisions";
 
 export const metadata: Metadata = { title: "Decisions" };
 
-// Scrolls inside its own box, so a narrow screen never scrolls the page (spec 004, AC5).
+// Explicit roles keep this a table when the phone layout reflows each row into a card (spec 005, AC7).
 async function DecisionTable() {
   const decisions = await listDecisions();
   return (
-    <div className="table-scroll" role="region" aria-label="Decision log" tabIndex={0}>
-      <table aria-label="Decision log">
-        <thead>
-          <tr>
-            <th scope="col">ADR</th>
-            <th scope="col">Decision</th>
-            <th scope="col">Status</th>
-            <th scope="col">Date</th>
+    <table role="table" aria-label="Decision log" className="data-table">
+      <thead role="rowgroup">
+        <tr role="row">
+          <th role="columnheader" scope="col">
+            ADR
+          </th>
+          <th role="columnheader" scope="col">
+            Decision
+          </th>
+          <th role="columnheader" scope="col">
+            Status
+          </th>
+          <th role="columnheader" scope="col">
+            Date
+          </th>
+        </tr>
+      </thead>
+      <tbody role="rowgroup">
+        {decisions.map((d) => (
+          <tr role="row" key={d.slug}>
+            <Cell label="ADR" className="mono">
+              {String(d.number).padStart(4, "0")}
+            </Cell>
+            <Cell label="Decision" className="wrap">
+              <Link href={`/decisions/${d.slug}`}>{d.title}</Link>
+            </Cell>
+            <Cell label="Status">
+              <Badge status={d.status} />
+            </Cell>
+            <Cell label="Date">
+              <DateTime iso={d.date} />
+            </Cell>
           </tr>
-        </thead>
-        <tbody>
-          {decisions.map((d) => (
-            <tr key={d.slug}>
-              <td>{String(d.number).padStart(4, "0")}</td>
-              <td>
-                <Link href={`/decisions/${d.slug}`}>{d.title}</Link>
-              </td>
-              <td>{d.status}</td>
-              <td>{d.date}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
